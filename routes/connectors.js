@@ -17,6 +17,32 @@ export const CONNECTOR_TYPES = [
   { type: 'webhook', name: 'Webhook', category: 'Skills', description: 'Custom HTTP webhooks', icon: '🔗', fields: ['url', 'secret'] },
 ];
 
+function normalizeConfig(config = {}) {
+  const normalized = {};
+  Object.entries(config || {}).forEach(([key, value]) => {
+    normalized[key] = typeof value === 'string' ? value.trim() : value;
+  });
+  return normalized;
+}
+
+function validateConnectorInput(type, config = {}) {
+  const definition = CONNECTOR_TYPES.find((item) => item.type === type);
+  if (!definition) return `Unsupported connector type: ${type}`;
+
+  const normalized = normalizeConfig(config);
+  const required = definition.fields || [];
+  const missing = required.filter((field) => !normalized[field]);
+
+  if ((type === 'openrouter' || type === 'ollama') && !normalized.apiKey) {
+    return 'API key is required for OpenRouter/Ollama connectors';
+  }
+  if (missing.length > 0) {
+    return `Missing required fields: ${missing.join(', ')}`;
+  }
+
+  return null;
+}
+
 router.get('/types', (req, res) => {
   res.json(CONNECTOR_TYPES);
 });
@@ -30,11 +56,14 @@ router.get('/', (req, res) => {
 router.post('/', (req, res) => {
   const { type, name, config } = req.body;
   if (!type || !name) return res.status(400).json({ error: 'Type and name required' });
+  const validationError = validateConnectorInput(type, config || {});
+  if (validationError) return res.status(400).json({ error: validationError });
 
   const db = getDB();
   const id = uuidv4();
+  const safeConfig = normalizeConfig(config || {});
   db.prepare('INSERT INTO connectors (id, user_id, type, name, config, active) VALUES (?, ?, ?, ?, ?, 1)')
-    .run(id, req.user.id, type, name, JSON.stringify(config || {}));
+    .run(id, req.user.id, type, name, JSON.stringify(safeConfig));
 
   res.json(db.prepare('SELECT id, type, name, active, created_at FROM connectors WHERE id = ?').get(id));
 });
@@ -42,11 +71,16 @@ router.post('/', (req, res) => {
 router.put('/:id', (req, res) => {
   const { name, config, active } = req.body;
   const db = getDB();
-  const conn = db.prepare('SELECT id FROM connectors WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
+  const conn = db.prepare('SELECT id, type, config FROM connectors WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
   if (!conn) return res.status(404).json({ error: 'Connector not found' });
 
   if (name !== undefined) db.prepare('UPDATE connectors SET name = ? WHERE id = ?').run(name, req.params.id);
-  if (config !== undefined) db.prepare('UPDATE connectors SET config = ? WHERE id = ?').run(JSON.stringify(config), req.params.id);
+  if (config !== undefined) {
+    const nextConfig = normalizeConfig(config);
+    const validationError = validateConnectorInput(conn.type, nextConfig);
+    if (validationError) return res.status(400).json({ error: validationError });
+    db.prepare('UPDATE connectors SET config = ? WHERE id = ?').run(JSON.stringify(nextConfig), req.params.id);
+  }
   if (active !== undefined) db.prepare('UPDATE connectors SET active = ? WHERE id = ?').run(active ? 1 : 0, req.params.id);
 
   res.json(db.prepare('SELECT id, type, name, active, created_at FROM connectors WHERE id = ?').get(req.params.id));
@@ -69,7 +103,7 @@ router.post('/:id/test', async (req, res) => {
   try {
     if (conn.type === 'openrouter' || conn.type === 'ollama') {
       const response = await fetch('https://openrouter.ai/api/v1/models', {
-        headers: { 'Authorization': `Bearer ${config.apiKey}` }
+        headers: { 'Authorization': `Bearer ${(config.apiKey || '').trim()}`, 'Accept': 'application/json' }
       });
       if (!response.ok) throw new Error('Invalid API key');
       return res.json({ success: true, message: conn.type === 'ollama' ? 'Ollama bridge (OpenRouter) connection successful' : 'OpenRouter connection successful' });

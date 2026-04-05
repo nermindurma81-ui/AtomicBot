@@ -200,6 +200,30 @@ router.post('/install', (req, res) => {
   });
 });
 
+router.post('/install-skill', (req, res) => {
+  const { skillId } = req.body;
+  if (!skillId) return res.status(400).json({ error: 'skillId is required' });
+  const normalizedSkillId = normalizeSkillId(skillId);
+
+  const exists = CLAWHUB_SKILLS.find((skill) => skill.id === normalizedSkillId);
+  if (!exists) return res.status(404).json({ error: 'Skill not found' });
+
+  const db = getDB();
+  db.prepare(`
+    INSERT INTO installed_skills (id, user_id, pack_id, skill_id, active)
+    VALUES (?, ?, 'manual', ?, 1)
+    ON CONFLICT(user_id, pack_id, skill_id)
+    DO UPDATE SET active = 1
+  `).run(uuidv4(), req.user.id, normalizedSkillId);
+
+  const installed = db
+    .prepare('SELECT id, pack_id, skill_id, active, created_at FROM installed_skills WHERE user_id = ? ORDER BY created_at DESC')
+    .all(req.user.id)
+    .map((row) => ({ ...row, skill_id: normalizeSkillId(row.skill_id) }));
+
+  res.json({ installedCount: 1, skillId: normalizedSkillId, installed });
+});
+
 router.put('/installed/:id', (req, res) => {
   const { active } = req.body;
   const db = getDB();

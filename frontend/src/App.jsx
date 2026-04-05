@@ -90,6 +90,7 @@ export default function App() {
   const [inp, setInp] = useState('');
   const [streaming, setStreaming] = useState(false);
   const [modal, setModal] = useState(null);
+  const [modalErr, setModalErr] = useState('');
   const [skillSrch, setSkillSrch] = useState('');
   const [connTab, setConnTab] = useState('All');
   const [skillPacks, setSkillPacks] = useState([]);
@@ -220,15 +221,31 @@ export default function App() {
   }
 
   async function addConnector(type, config) {
+    const safeConfig = Object.fromEntries(
+      Object.entries(config || {}).map(([k, v]) => [k, typeof v === 'string' ? v.trim() : v])
+    );
     const existing = connectors.find(c => c.type === type);
+    let saved;
     if (existing) {
-      const updated = await api.put(`/api/connectors/${existing.id}`, { config, active: true });
+      const updated = await api.put(`/api/connectors/${existing.id}`, { config: safeConfig, active: true });
+      if (updated?.error) throw new Error(updated.error);
+      saved = updated;
       setConnectors(p => p.map(c => c.id === existing.id ? updated : c));
     } else {
       const def = CONNECTOR_TYPES.find(c => c.type === type);
-      const created = await api.post('/api/connectors', { type, name: def.name, config });
+      const created = await api.post('/api/connectors', { type, name: def.name, config: safeConfig });
+      if (created?.error) throw new Error(created.error);
+      saved = created;
       setConnectors(p => [...p, created]);
     }
+
+    if ((type === 'openrouter' || type === 'ollama') && saved?.id) {
+      const test = await api.post(`/api/connectors/${saved.id}/test`, {});
+      if (test?.success === false || test?.error) {
+        throw new Error(test?.message || test?.error || 'Connector test failed');
+      }
+    }
+    setModalErr('');
     setModal(null);
   }
 
@@ -294,6 +311,12 @@ export default function App() {
 
   async function installPack(packId) {
     const data = await api.post('/api/skills/install', { packId });
+    if (data?.installed) setInstalledSkills(data.installed);
+  }
+
+  async function installSkill(skillId) {
+    const data = await api.post('/api/skills/install-skill', { skillId });
+    if (data?.error) throw new Error(data.error);
     if (data?.installed) setInstalledSkills(data.installed);
   }
 
@@ -570,7 +593,7 @@ export default function App() {
                     {connected && <span style={{ fontSize: 14, color: L }}>✓</span>}
                   </div>
                   <div style={{ fontSize: 12, color: MT, lineHeight: 1.5 }}>{def.desc}</div>
-                  <button style={btn('primary', true)} onClick={() => setModal({ type: 'connector', def })}>{connected ? 'Rekonfiguriši' : 'Konfiguriši'}</button>
+                  <button style={btn('primary', true)} onClick={() => { setModalErr(''); setModal({ type: 'connector', def }); }}>{connected ? 'Rekonfiguriši' : 'Konfiguriši'}</button>
                 </div>
               );
             })}
@@ -585,6 +608,7 @@ export default function App() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(230px,1fr))', gap: 12 }}>
             {SKILLS.filter(s => !skillSrch || s.name.toLowerCase().includes(skillSrch.toLowerCase()) || s.desc.toLowerCase().includes(skillSrch.toLowerCase())).map(sk => {
               const needsConn = sk.connector && !connectors.find(c => c.type === sk.connector && c.active);
+              const isInstalled = installedSkills.some(i => i.skill_id === sk.id && i.active);
               return (
                 <div key={sk.id} style={{ background: B2, border: `1px solid ${BR}`, borderRadius: 12, padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -594,7 +618,20 @@ export default function App() {
                   </div>
                   <div style={{ fontSize: 12, color: MT, lineHeight: 1.5 }}>{sk.desc}</div>
                   {needsConn && <div style={{ fontSize: 11, color: '#ff9900' }}>⚠ Treba {CONNECTOR_TYPES.find(c => c.type === sk.connector)?.name}</div>}
-                  <button style={btn('ghost', true)} onClick={() => needsConn ? setView('connectors') : null}>{needsConn ? 'Konfiguriši konektor' : 'Dodaj asistentu'}</button>
+                  <button
+                    style={btn('ghost', true)}
+                    onClick={async () => {
+                      if (needsConn) return openView('connectors');
+                      if (isInstalled) return;
+                      try {
+                        await installSkill(sk.id);
+                      } catch (err) {
+                        alert(`Greška: ${err.message}`);
+                      }
+                    }}
+                  >
+                    {needsConn ? 'Konfiguriši konektor' : isInstalled ? 'Dodano ✓' : 'Dodaj asistentu'}
+                  </button>
                 </div>
               );
             })}
@@ -710,7 +747,13 @@ export default function App() {
           <div style={{ background: B2, border: `1px solid ${BR}`, borderRadius: 16, padding: 28, width: 420, maxHeight: '80vh', overflowY: 'auto' }}>
             <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 6 }}>{modal.def.icon} {modal.def.name}</div>
             <div style={{ fontSize: 12, color: MT, marginBottom: 20 }}>{modal.def.desc}</div>
-            <ConnForm def={modal.def} onSave={cfg => addConnector(modal.def.type, cfg)} onClose={() => setModal(null)} />
+            <ConnForm error={modalErr} def={modal.def} onSave={async (cfg) => {
+              try {
+                await addConnector(modal.def.type, cfg);
+              } catch (err) {
+                setModalErr(err.message || 'Greška pri spremanju konektora');
+              }
+            }} onClose={() => { setModalErr(''); setModal(null); }} />
           </div>
         </div>
       )}
@@ -789,7 +832,7 @@ function AuthScreen({ onLogin }) {
 }
 
 // ─── Connector Form ───────────────────────────────────────────────────────────
-function ConnForm({ def, onSave, onClose }) {
+function ConnForm({ def, onSave, onClose, error }) {
   const [cfg, setCfg] = useState({});
   return (
     <form onSubmit={e => { e.preventDefault(); onSave(cfg); }}>
@@ -799,6 +842,7 @@ function ConnForm({ def, onSave, onClose }) {
           <input style={{ ...fi, fontSize: 13 }} type={['apiKey', 'token', 'secret', 'clientSecret'].includes(f) ? 'password' : 'text'} placeholder={`Unesi ${f}`} value={cfg[f] || ''} onChange={e => setCfg(p => ({ ...p, [f]: e.target.value }))} />
         </div>
       ))}
+      {error && <div style={{ color: '#ff7777', fontSize: 12, marginBottom: 8 }}>⚠ {error}</div>}
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 20 }}>
         <button type="button" style={btn('ghost')} onClick={onClose}>Otkaži</button>
         <button type="submit" style={btn('primary')}>Sačuvaj</button>
