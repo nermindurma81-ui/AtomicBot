@@ -92,6 +92,11 @@ export default function App() {
   const [modal, setModal] = useState(null);
   const [skillSrch, setSkillSrch] = useState('');
   const [connTab, setConnTab] = useState('All');
+  const [skillPacks, setSkillPacks] = useState([]);
+  const [installedSkills, setInstalledSkills] = useState([]);
+  const [agencyPrompt, setAgencyPrompt] = useState('');
+  const [agencyRun, setAgencyRun] = useState(null);
+  const [agencyBusy, setAgencyBusy] = useState(false);
   const msgEnd = useRef(null);
   const ta = useRef(null);
 
@@ -114,6 +119,8 @@ export default function App() {
     api.get('/api/crons').then(data => setCronJobs(Array.isArray(data) ? data : []));
     api.get('/api/vps').then(data => setVpsInst(Array.isArray(data) ? data : []));
     api.get('/api/models').then(data => { if (data.models) setModels(data.models); });
+    api.get('/api/skills/packs').then(data => setSkillPacks(Array.isArray(data) ? data : []));
+    api.get('/api/skills/installed').then(data => setInstalledSkills(Array.isArray(data) ? data : []));
   }
 
   async function loadTask(id) {
@@ -264,6 +271,25 @@ export default function App() {
     setVpsInst(p => p.filter(v => v.id !== id));
   }
 
+  async function installPack(packId) {
+    const data = await api.post('/api/skills/install', { packId });
+    if (data?.installed) setInstalledSkills(data.installed);
+  }
+
+  async function runAgency() {
+    if (!agencyPrompt.trim() || agencyBusy) return;
+    setAgencyBusy(true);
+    try {
+      const data = await api.post('/api/agency/run', { prompt: agencyPrompt, model: selModel });
+      if (data.error) throw new Error(data.error);
+      setAgencyRun(data);
+      await api.get('/api/skills/installed').then(resp => setInstalledSkills(Array.isArray(resp) ? resp : []));
+    } catch (err) {
+      setAgencyRun({ error: err.message });
+    }
+    setAgencyBusy(false);
+  }
+
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: BG }}>
       <div style={{ fontSize: 32 }}>🦞</div>
@@ -284,8 +310,8 @@ export default function App() {
             <div style={{ width: 26, height: 26, background: L, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 15, color: '#000', flexShrink: 0 }}>+</div>
             <span style={{ fontWeight: 800, fontSize: 12, letterSpacing: 1 }}>ATOMIC BOT</span>
           </div>
-          <div onClick={() => { setActiveTid(null); setActiveTask(null); setView('chat'); }} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', cursor: 'pointer', fontSize: 12, color: L }}>+ Nova zadaća</div>
-          {[['connectors', '⚡', 'Connectors'], ['skills', '🌟', 'Clawhub Skills'], ['models', '✦', 'AI Modeli'], ['vps', '☁', 'VPS Instanca'], ['crons', '⏱', 'Cron Jobs']].map(([v, icon, label]) => (
+          <div onClick={() => { setActiveTid(null); setActiveTask(null); setView('chat'); }} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', cursor: 'pointer', fontSize: 12, color: L }}>+ New task</div>
+          {[['launch', '🦞', 'Run OpenClaw'], ['connectors', '⚡', 'Connectors'], ['skills', '🌟', 'Clawhub Skills'], ['agency', '🧠', 'Agency Runtime'], ['models', '✦', 'AI Models'], ['vps', '☁', 'VPS Instance'], ['crons', '⏱', 'Cron Jobs']].map(([v, icon, label]) => (
             <div key={v} onClick={() => setView(v)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', cursor: 'pointer', fontSize: 12, color: view === v ? L : MT, background: view === v ? 'rgba(170,255,0,0.06)' : 'transparent' }}>
               <span>{icon}</span><span>{label}</span>
             </div>
@@ -306,7 +332,7 @@ export default function App() {
           <div style={{ width: 28, height: 28, borderRadius: '50%', background: BR, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{user.email?.[0]?.toUpperCase()}</div>
           <div style={{ flex: 1, overflow: 'hidden' }}>
             <div style={{ fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.email}</div>
-            <div style={{ fontSize: 9, color: L }}>Pro plan</div>
+            <div style={{ fontSize: 9, color: L }}>Free plan</div>
           </div>
           <span style={{ fontSize: 13, cursor: 'pointer', color: MT }} onClick={() => { localStorage.removeItem('ab_token'); setUser(null); }}>⇥</span>
         </div>
@@ -314,6 +340,65 @@ export default function App() {
 
       {/* MAIN */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+
+        {/* LAUNCH */}
+        {view === 'launch' && <div style={{ flex: 1, overflowY: 'auto', padding: 28 }}>
+          <div style={{ maxWidth: 900, margin: '0 auto', background: '#0B0B0D', border: `1px solid ${BR}`, borderRadius: 24, padding: '32px 28px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 22 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ width: 30, height: 30, background: L, borderRadius: 8, color: '#000', fontWeight: 900, display: 'grid', placeItems: 'center' }}>+</div>
+                <div style={{ fontWeight: 800, fontSize: 28, letterSpacing: 0.5 }}>ATOMIC BOT</div>
+              </div>
+              <button style={{ ...btn('ghost'), borderRadius: 999, width: 48, height: 48, padding: 0 }}>☰</button>
+            </div>
+            <div style={{ textAlign: 'center', padding: '32px 0 20px' }}>
+              <div style={{ fontSize: 64, lineHeight: 1, fontWeight: 900 }}>RUN 🦞</div>
+              <div style={{ fontSize: 64, lineHeight: 1, fontWeight: 900 }}>OPENCLAW</div>
+              <div style={{ fontSize: 64, lineHeight: 1, fontWeight: 900, marginBottom: 12 }}>IN ONE CLICK</div>
+              <p style={{ color: MT, fontSize: 28, marginBottom: 28 }}>One click and your AI assistant is live 24/7</p>
+              <button style={{ background: '#B6F53F', border: 'none', color: '#000', borderRadius: 999, fontSize: 38, fontWeight: 700, padding: '18px 52px', cursor: 'pointer' }} onClick={() => setView('vps')}>+ Run in Cloud</button>
+            </div>
+          </div>
+        </div>}
+
+        {/* AGENCY */}
+        {view === 'agency' && <div style={{ flex: 1, overflowY: 'auto', padding: 28 }}>
+          <h1 style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>Agency Runtime</h1>
+          <p style={{ color: MT, fontSize: 13, marginBottom: 18 }}>Planner → Search → Executor workflow sa instaliranim skillovima.</p>
+
+          <div style={{ background: B2, border: `1px solid ${BR}`, borderRadius: 12, padding: 16, marginBottom: 16 }}>
+            <div style={{ fontSize: 12, color: MT, marginBottom: 8 }}>Skill Packovi</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(250px,1fr))', gap: 10 }}>
+              {skillPacks.map(pack => {
+                const installedCount = installedSkills.filter(i => i.pack_id === pack.id && i.active).length;
+                return <div key={pack.id} style={{ background: B3, border: `1px solid ${BR}`, borderRadius: 10, padding: 12 }}>
+                  <div style={{ fontWeight: 700, fontSize: 13 }}>{pack.name}</div>
+                  <div style={{ color: MT, fontSize: 11, margin: '5px 0 8px' }}>{pack.description}</div>
+                  <div style={{ fontSize: 10, color: MT, marginBottom: 8 }}>{pack.capabilities?.join(', ')}</div>
+                  <button style={btn('ghost', true)} onClick={() => installPack(pack.id)}>{installedCount ? `Installed (${installedCount})` : 'Install pack'}</button>
+                </div>;
+              })}
+            </div>
+          </div>
+
+          <div style={{ background: B2, border: `1px solid ${BR}`, borderRadius: 12, padding: 16 }}>
+            <label style={fl}>TASK PROMPT</label>
+            <textarea style={{ ...fi, minHeight: 110, resize: 'vertical' }} value={agencyPrompt} onChange={e => setAgencyPrompt(e.target.value)} placeholder="Npr. Napravi sedmični AI market report i akcioni plan za tim." />
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10, alignItems: 'center' }}>
+              <div style={{ fontSize: 11, color: MT }}>Model: {selModel}</div>
+              <button style={btn('primary')} onClick={runAgency} disabled={agencyBusy}>{agencyBusy ? 'Running…' : 'Run Agency Task'}</button>
+            </div>
+          </div>
+
+          {agencyRun && <div style={{ background: B2, border: `1px solid ${BR}`, borderRadius: 12, padding: 16, marginTop: 16 }}>
+            {agencyRun.error ? <div style={{ color: '#ff7777', fontSize: 12 }}>⚠ {agencyRun.error}</div> : <>
+              <div style={{ fontSize: 12, color: MT, marginBottom: 6 }}>Plan</div>
+              <pre style={{ background: B3, border: `1px solid ${BR}`, borderRadius: 8, padding: 10, whiteSpace: 'pre-wrap', fontSize: 12 }}>{agencyRun.plan}</pre>
+              <div style={{ fontSize: 12, color: MT, margin: '10px 0 6px' }}>Result</div>
+              <div style={{ fontSize: 13, lineHeight: 1.6 }}>{fmt(agencyRun.result)}</div>
+            </>}
+          </div>}
+        </div>}
 
         {/* CHAT */}
         {view === 'chat' && <>
@@ -326,10 +411,10 @@ export default function App() {
               <select style={{ background: B3, border: `1px solid ${BR}`, borderRadius: 7, padding: '5px 9px', color: TX, fontSize: 11, outline: 'none', cursor: 'pointer' }} value={selModel} onChange={e => setSelModel(e.target.value)}>
                 {models.length > 0 ? models.map(m => <option key={m.id} value={m.id}>{m.name}</option>) : (
                   <>
-                    <option value="openrouter/mistralai/mistral-7b-instruct:free">Claude Haiku 4.5</option>
-                    <option value="openrouter/meta-llama/llama-3-8b-instruct:free">Claude Sonnet 4</option>
                     <option value="openrouter/mistralai/mistral-7b-instruct:free">Mistral 7B (Free)</option>
                     <option value="openrouter/meta-llama/llama-3-8b-instruct:free">Llama 3 8B (Free)</option>
+                    <option value="openrouter/google/gemma-2-9b-it:free">Gemma 2 9B (Free)</option>
+                    <option value="openrouter/qwen/qwen-2-7b-instruct:free">Qwen 2 7B (Free)</option>
                     <option value="openrouter/deepseek/deepseek-r1:free">DeepSeek R1 (Free)</option>
                   </>
                 )}
@@ -472,12 +557,12 @@ export default function App() {
         {/* MODELS */}
         {view === 'models' && <div style={{ flex: 1, overflowY: 'auto', padding: 28 }}>
           <h1 style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>AI Modeli</h1>
-          <p style={{ color: MT, fontSize: 13, marginBottom: 24 }}>Claude modeli rade ako je ANTHROPIC_API_KEY setovan na Railway. OpenRouter modeli zahtijevaju API ključ u Connectors.</p>
+          <p style={{ color: MT, fontSize: 13, marginBottom: 24 }}>AtomicBot koristi OpenRouter free modele. Dodaj OpenRouter API ključ kroz Connectors.</p>
           {(models.length > 0 ? models : [
-            { id: 'openrouter/meta-llama/llama-3-8b-instruct:free', name: 'Claude Sonnet 4', provider: 'anthropic', context: 200000 },
-            { id: 'openrouter/mistralai/mistral-7b-instruct:free', name: 'Claude Haiku 4.5', provider: 'anthropic', context: 200000 },
             { id: 'openrouter/mistralai/mistral-7b-instruct:free', name: 'Mistral 7B (Free)', provider: 'openrouter', context: 32768 },
             { id: 'openrouter/meta-llama/llama-3-8b-instruct:free', name: 'Llama 3 8B (Free)', provider: 'openrouter', context: 8192 },
+            { id: 'openrouter/google/gemma-2-9b-it:free', name: 'Gemma 2 9B (Free)', provider: 'openrouter', context: 8192 },
+            { id: 'openrouter/qwen/qwen-2-7b-instruct:free', name: 'Qwen 2 7B (Free)', provider: 'openrouter', context: 32768 },
             { id: 'openrouter/deepseek/deepseek-r1:free', name: 'DeepSeek R1 (Free)', provider: 'openrouter', context: 65536 },
           ]).map(m => (
             <div key={m.id} onClick={() => setSelModel(m.id)} style={{ background: selModel === m.id ? 'rgba(170,255,0,0.04)' : B2, border: `1px solid ${selModel === m.id ? L : BR}`, borderRadius: 12, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer', marginBottom: 10 }}>
@@ -663,9 +748,9 @@ function CronForm({ onSave, onClose }) {
       <div style={{ marginBottom: 14 }}>
         <label style={fl}>MODEL</label>
         <select style={{ ...fi, cursor: 'pointer', fontSize: 13 }} value={f.model} onChange={e => setF(p => ({ ...p, model: e.target.value }))}>
-          <option value="openrouter/mistralai/mistral-7b-instruct:free">Claude Haiku 4.5</option>
-          <option value="openrouter/meta-llama/llama-3-8b-instruct:free">Claude Sonnet 4</option>
           <option value="openrouter/mistralai/mistral-7b-instruct:free">Mistral 7B (Free)</option>
+          <option value="openrouter/meta-llama/llama-3-8b-instruct:free">Llama 3 8B (Free)</option>
+          <option value="openrouter/deepseek/deepseek-r1:free">DeepSeek R1 (Free)</option>
           <option value="openrouter/deepseek/deepseek-r1:free">DeepSeek R1 (Free)</option>
         </select>
       </div>
