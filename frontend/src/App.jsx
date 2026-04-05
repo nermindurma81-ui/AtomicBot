@@ -22,6 +22,8 @@ const SKILLS = [
   { id: 'summarizer',       name: 'Doc Summarizer',      desc: 'Sažmi duge dokumente i PDF-ove',              icon: '📄', cat: 'Productivity',  free: true },
   { id: 'translator',       name: 'Translator',          desc: 'Prevedi tekst između 50+ jezika',             icon: '🌍', cat: 'Language',      free: true },
   { id: 'task-planner',     name: 'Task Planner',        desc: 'Razloži ciljeve na akcione zadaće',           icon: '✅', cat: 'Productivity',  free: true },
+  { id: 'claude-opus-max-skill', name: 'Claude Opus Max Skill', desc: 'Duboko rezonovanje za kompleksne zadatke', icon: '🧠', cat: 'Reasoning', free: true, connector: 'openrouter' },
+  { id: 'codex-engineer-skill', name: 'Codex Engineer Skill', desc: 'Analiza repo-a, implementacija i testiranje', icon: '🛠️', cat: 'Development', free: true },
   { id: 'data-analyst',     name: 'Data Analyst',        desc: 'Analiziraj CSV/Excel i pravi grafikone',      icon: '📊', cat: 'Analytics',     free: true },
   { id: 'email-manager',    name: 'Email Manager',       desc: 'Inbox, slanje emaila, upravljanje kalendarom',icon: '✉️', cat: 'Communication', free: false, connector: 'google_workspace' },
   { id: 'calendar',         name: 'Calendar Asst.',      desc: 'Upravljaj Google Kalendarom',                 icon: '📅', cat: 'Productivity',  free: false, connector: 'google_workspace' },

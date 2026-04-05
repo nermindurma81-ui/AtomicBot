@@ -90,4 +90,4 @@ Ako koristiš `ollama/*` model ID, backend ga automatski mapira na OpenRouter fr
 
 ## Claude Opus Max Skill
 
-Dodana je metadata za `Claude Opus Max Skill`, ali je namjerno **disabled u free-only modu** (nije dostupan za instalaciju).
+`Claude Opus Max Skill` i `Codex Engineer Skill` su dostupni kroz skill packove za owner account.

@@ -88,6 +88,25 @@ export const CLAWHUB_SKILLS = [
     free: true,
     connector: null,
   },
+
+  {
+    id: 'claude-opus-max-skill',
+    name: 'Claude Opus Max Skill',
+    description: 'High-depth reasoning profile unlocked for owner account',
+    icon: '🧠',
+    category: 'Reasoning',
+    free: true,
+    connector: 'openrouter',
+  },
+  {
+    id: 'codex-engineer-skill',
+    name: 'Codex Engineer Skill',
+    description: 'End-to-end coding workflow: analyze, implement, test, fix',
+    icon: '🛠️',
+    category: 'Development',
+    free: true,
+    connector: null,
+  },
   {
     id: 'data-analyst',
     name: 'Data Analyst',
