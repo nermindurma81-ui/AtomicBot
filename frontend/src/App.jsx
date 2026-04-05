@@ -97,10 +97,23 @@ export default function App() {
   const [agencyPrompt, setAgencyPrompt] = useState('');
   const [agencyRun, setAgencyRun] = useState(null);
   const [agencyBusy, setAgencyBusy] = useState(false);
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 900 : false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const msgEnd = useRef(null);
   const ta = useRef(null);
 
   useEffect(() => { msgEnd.current?.scrollIntoView({ behavior: 'smooth' }); });
+
+  useEffect(() => {
+    const onResize = () => {
+      const mobile = window.innerWidth < 900;
+      setIsMobile(mobile);
+      setSidebarOpen(!mobile);
+    };
+    window.addEventListener('resize', onResize);
+    onResize();
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   // Init — check token
   useEffect(() => {
@@ -302,9 +315,9 @@ export default function App() {
   const filtConn = connTab === 'All' ? CONNECTOR_TYPES : CONNECTOR_TYPES.filter(c => c.cat === connTab);
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: BG, color: TX }}>
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: BG, color: TX, position: 'relative' }}>
       {/* SIDEBAR */}
-      <div style={{ width: 220, minWidth: 220, background: B2, borderRight: `1px solid ${BR}`, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div style={{ width: 220, minWidth: 220, background: B2, borderRight: `1px solid ${BR}`, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: isMobile ? 'fixed' : 'relative', zIndex: 40, left: sidebarOpen ? 0 : -240, top: 0, bottom: 0, transition: 'left .2s ease' }}>
         <div style={{ flex: 1, overflowY: 'auto' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '14px 14px 12px', borderBottom: `1px solid ${BR}` }}>
             <div style={{ width: 26, height: 26, background: L, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 15, color: '#000', flexShrink: 0 }}>+</div>
@@ -338,8 +351,18 @@ export default function App() {
         </div>
       </div>
 
+      {isMobile && sidebarOpen && <div onClick={() => setSidebarOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 30 }} />}
+
       {/* MAIN */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', marginLeft: isMobile ? 0 : 0 }}>
+
+        <div style={{ padding: '10px 14px', borderBottom: `1px solid ${BR}`, background: B2, display: isMobile ? 'flex' : 'none', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <button onClick={() => setSidebarOpen(true)} style={{ ...btn('ghost', true), width: 34, height: 34, padding: 0, borderRadius: 8 }}>☰</button>
+            <div style={{ fontWeight: 800, fontSize: 14 }}>ATOMIC BOT</div>
+          </div>
+          <div style={{ fontSize: 11, color: MT }}>{view.toUpperCase()}</div>
+        </div>
 
         {/* LAUNCH */}
         {view === 'launch' && <div style={{ flex: 1, overflowY: 'auto', padding: 28 }}>
@@ -352,11 +375,16 @@ export default function App() {
               <button style={{ ...btn('ghost'), borderRadius: 999, width: 48, height: 48, padding: 0 }}>☰</button>
             </div>
             <div style={{ textAlign: 'center', padding: '32px 0 20px' }}>
-              <div style={{ fontSize: 64, lineHeight: 1, fontWeight: 900 }}>RUN 🦞</div>
-              <div style={{ fontSize: 64, lineHeight: 1, fontWeight: 900 }}>OPENCLAW</div>
-              <div style={{ fontSize: 64, lineHeight: 1, fontWeight: 900, marginBottom: 12 }}>IN ONE CLICK</div>
-              <p style={{ color: MT, fontSize: 28, marginBottom: 28 }}>One click and your AI assistant is live 24/7</p>
-              <button style={{ background: '#B6F53F', border: 'none', color: '#000', borderRadius: 999, fontSize: 38, fontWeight: 700, padding: '18px 52px', cursor: 'pointer' }} onClick={() => setView('vps')}>+ Run in Cloud</button>
+              <div style={{ fontSize: isMobile ? 38 : 64, lineHeight: 1, fontWeight: 900 }}>RUN 🦞</div>
+              <div style={{ fontSize: isMobile ? 38 : 64, lineHeight: 1, fontWeight: 900 }}>OPENCLAW</div>
+              <div style={{ fontSize: isMobile ? 38 : 64, lineHeight: 1, fontWeight: 900, marginBottom: 12 }}>IN ONE CLICK</div>
+              <p style={{ color: MT, fontSize: isMobile ? 19 : 28, marginBottom: 28 }}>One click and your AI assistant is live 24/7</p>
+              <button style={{ background: '#B6F53F', border: 'none', color: '#000', borderRadius: 999, fontSize: isMobile ? 24 : 38, fontWeight: 700, padding: isMobile ? '14px 30px' : '18px 52px', cursor: 'pointer' }} onClick={() => setView('vps')}>+ Run in Cloud</button>
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap', marginTop: 14 }}>
+                <button style={btn('ghost', true)} onClick={() => setView('agency')}>Open Agency Panel</button>
+                <button style={btn('ghost', true)} onClick={() => setView('connectors')}>Configure Connectors</button>
+                <button style={btn('ghost', true)} onClick={() => setView('models')}>Browse Free Models</button>
+              </div>
             </div>
           </div>
         </div>}
