@@ -86,6 +86,23 @@ npm run dev
 Frontend: `http://localhost:5173`  
 Backend: `http://localhost:3001`
 
+## Railway checklist script (prod smoke test)
+
+Za brzu provjeru ključnih API tokova na Railway:
+
+```bash
+BASE_URL=https://atomicbot-production-1e32.up.railway.app \
+LOGIN_EMAIL=you@example.com \
+LOGIN_PASSWORD=your-password \
+node scripts/railway-checklist.mjs
+```
+
+Opcionalno (auto postavi/refresh OpenRouter konektor prije chat/agency testa):
+
+```bash
+OPENROUTER_KEY=sk-or-... node scripts/railway-checklist.mjs
+```
+
 ## Railway build napomena (better-sqlite3)
 
 Ako build puca na `better-sqlite3` (`node-gyp`, Python, `No prebuilt binaries`), koristi Node 20 runtime.
