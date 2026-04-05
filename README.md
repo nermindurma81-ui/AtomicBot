@@ -60,6 +60,8 @@ git push -u origin main
 | `DB_PATH` | ne | putanja do SQLite baze |
 | `SINGLE_USER_MODE` | ne | `true` za jedan admin korisnik bez limita |
 | `OWNER_EMAIL` | ne | dozvoljeni email za registraciju u single-user modu |
+| `OWNER_PASSWORD` | ne | početna admin lozinka (preporučeno u produkciji) |
+| `VITE_API_BASE` | ne | puna API baza ako frontend i API nisu na istoj domeni (npr. `https://api.example.com`) |
 
 ## Default admin
 
