@@ -90,7 +90,7 @@ export const CLAWHUB_SKILLS = [
   },
 
   {
-    id: 'claude-opus-max-skill',
+    id: 'claude-opus-max',
     name: 'Claude Opus Max Skill',
     description: 'High-depth reasoning profile unlocked for owner account',
     icon: '🧠',
@@ -99,7 +99,7 @@ export const CLAWHUB_SKILLS = [
     connector: 'openrouter',
   },
   {
-    id: 'codex-engineer-skill',
+    id: 'codex-engineer',
     name: 'Codex Engineer Skill',
     description: 'End-to-end coding workflow: analyze, implement, test, fix',
     icon: '🛠️',

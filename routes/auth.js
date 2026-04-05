@@ -7,8 +7,9 @@ import { getDB } from '../db.js';
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'atomicbot_secret_key_change_in_prod';
 const SINGLE_USER_MODE = (process.env.SINGLE_USER_MODE || 'true') === 'true';
-const OWNER_EMAIL = (process.env.OWNER_EMAIL || 'nermindurma81@gmail.com').toLowerCase();
-const OWNER_PASSWORD = process.env.OWNER_PASSWORD || 'mojnerman';
+const OWNER_EMAIL = (process.env.OWNER_EMAIL || 'owner@example.com').toLowerCase().trim();
+const OWNER_PASSWORD = process.env.OWNER_PASSWORD || '';
+const OWNER_EMAIL_EXPLICIT = typeof process.env.OWNER_EMAIL === 'string' && process.env.OWNER_EMAIL.trim().length > 0;
 
 
 export function ensureDefaultAdmin() {
@@ -16,11 +17,15 @@ export function ensureDefaultAdmin() {
   const totalUsers = db.prepare('SELECT COUNT(*) as total FROM users').get().total;
   if (totalUsers > 0) return;
 
+  const seededPassword = OWNER_PASSWORD || uuidv4().replace(/-/g, '').slice(0, 16);
   const id = uuidv4();
-  const hash = bcrypt.hashSync(OWNER_PASSWORD, 10);
+  const hash = bcrypt.hashSync(seededPassword, 10);
   db.prepare('INSERT INTO users (id, email, password_hash, role, usage_limit) VALUES (?, ?, ?, ?, ?)')
     .run(id, OWNER_EMAIL, hash, 'admin', -1);
   console.log(`Default admin seeded: ${OWNER_EMAIL}`);
+  if (!OWNER_PASSWORD) {
+    console.warn(`OWNER_PASSWORD was not set. Temporary admin password: ${seededPassword}. Set OWNER_PASSWORD in environment variables for deterministic login.`);
+  }
 }
 
 function signUser(user) {
@@ -46,7 +51,7 @@ router.post('/register', async (req, res) => {
     return res.status(403).json({ error: 'Single-user mode enabled. Registration closed.' });
   }
 
-  if (SINGLE_USER_MODE && OWNER_EMAIL && normalizedEmail !== OWNER_EMAIL) {
+  if (SINGLE_USER_MODE && OWNER_EMAIL_EXPLICIT && normalizedEmail !== OWNER_EMAIL) {
     return res.status(403).json({ error: `Only owner email can register in single-user mode: ${OWNER_EMAIL}` });
   }
 

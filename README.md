@@ -63,10 +63,12 @@ git push -u origin main
 
 ## Default admin
 
-- Email: `nermindurma81@gmail.com`
-- Password: `mojnerman`
+Admin korisnik se seed-a na startupu koristeći env varijable:
 
-> Preporuka: odmah promijeni kroz env (`OWNER_EMAIL` / `OWNER_PASSWORD`) nakon prvog deploya.
+- `OWNER_EMAIL` (default: `owner@example.com`)
+- `OWNER_PASSWORD` (obavezno postaviti u produkciji)
+
+Ako `OWNER_PASSWORD` nije postavljen, aplikacija generiše privremenu lozinku i ispisuje je u server log.
 
 ## Lokalni razvoj
 
