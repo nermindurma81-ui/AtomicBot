@@ -39,7 +39,12 @@ const SKILLS = [
 const api = {
   base: API_BASE,
   token: () => localStorage.getItem('ab_token'),
-  headers: () => ({ 'Content-Type': 'application/json', 'Authorization': `Bearer ${api.token()}` }),
+  headers: () => {
+    const token = api.token();
+    return token
+      ? { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
+      : { 'Content-Type': 'application/json' };
+  },
   url: (path) => (/^https?:\/\//i.test(path) ? path : `${api.base}${path}`),
   request: async (url, options = {}) => {
     try {
@@ -216,6 +221,7 @@ export default function App() {
       });
 
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.body) throw new Error('Stream nije dostupan (prazan odgovor servera).');
       const reader = res.body.getReader();
       const dec = new TextDecoder();
       let full = '';
@@ -276,7 +282,7 @@ export default function App() {
       setTasks(p => p.map(t => t.id === tid ? { ...t, updated_at: new Date().toISOString() } : t));
 
     } catch (err) {
-      setActiveTask(p => ({ ...p, messages: p.messages.map(m => m.id === aiMsgId ? { ...m, content: `⚠️ Greška: ${err.message}` } : m) }));
+      setActiveTask(p => ({ ...p, messages: (p?.messages || []).map(m => m.id === aiMsgId ? { ...m, content: `⚠️ Greška: ${err.message}` } : m) }));
     }
 
     setStreaming(false);
