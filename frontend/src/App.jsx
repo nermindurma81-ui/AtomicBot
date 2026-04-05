@@ -321,6 +321,17 @@ export default function App() {
 
   const connCats = ['All', ...new Set(CONNECTOR_TYPES.map(c => c.cat))];
   const filtConn = connTab === 'All' ? CONNECTOR_TYPES : CONNECTOR_TYPES.filter(c => c.cat === connTab);
+  const MOBILE_NAV_ITEMS = [
+    ['launch', '🦞', 'Launch'],
+    ['chat', '💬', 'Chat'],
+    ['connectors', '⚡', 'Conn'],
+    ['skills', '🌟', 'Skills'],
+    ['agency', '🧠', 'Agency'],
+  ];
+  const openView = (nextView) => {
+    setView(nextView);
+    if (isMobile) setSidebarOpen(false);
+  };
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: BG, color: TX, position: 'relative' }}>
@@ -331,9 +342,9 @@ export default function App() {
             <div style={{ width: 26, height: 26, background: L, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 15, color: '#000', flexShrink: 0 }}>+</div>
             <span style={{ fontWeight: 800, fontSize: 12, letterSpacing: 1 }}>ATOMIC BOT</span>
           </div>
-          <div onClick={() => { setActiveTid(null); setActiveTask(null); setView('chat'); }} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', cursor: 'pointer', fontSize: 12, color: L }}>+ New task</div>
+          <div onClick={() => { setActiveTid(null); setActiveTask(null); openView('chat'); }} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', cursor: 'pointer', fontSize: 12, color: L }}>+ New task</div>
           {[['launch', '🦞', 'Run OpenClaw'], ['connectors', '⚡', 'Connectors'], ['skills', '🌟', 'Clawhub Skills'], ['agency', '🧠', 'Agency Runtime'], ['models', '✦', 'AI Models'], ['vps', '☁', 'VPS Instance'], ['crons', '⏱', 'Cron Jobs']].map(([v, icon, label]) => (
-            <div key={v} onClick={() => setView(v)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', cursor: 'pointer', fontSize: 12, color: view === v ? L : MT, background: view === v ? 'rgba(170,255,0,0.06)' : 'transparent' }}>
+            <div key={v} onClick={() => openView(v)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', cursor: 'pointer', fontSize: 12, color: view === v ? L : MT, background: view === v ? 'rgba(170,255,0,0.06)' : 'transparent' }}>
               <span>{icon}</span><span>{label}</span>
             </div>
           ))}
@@ -341,7 +352,7 @@ export default function App() {
             <>
               <div style={{ fontSize: 9, color: MT, letterSpacing: 1.5, padding: '12px 14px 4px', textTransform: 'uppercase' }}>Zadaće</div>
               {tasks.map(t => (
-                <div key={t.id} onClick={() => loadTask(t.id)} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '5px 14px', cursor: 'pointer', fontSize: 11, color: t.id === activeTid ? TX : MT, borderLeft: `2px solid ${t.id === activeTid ? L : 'transparent'}` }}>
+                <div key={t.id} onClick={() => { loadTask(t.id); if (isMobile) setSidebarOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '5px 14px', cursor: 'pointer', fontSize: 11, color: t.id === activeTid ? TX : MT, borderLeft: `2px solid ${t.id === activeTid ? L : 'transparent'}` }}>
                   <div style={{ width: 5, height: 5, borderRadius: '50%', background: t.status === 'running' ? L : BR, flexShrink: 0 }} />
                   <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title}</span>
                 </div>
@@ -373,7 +384,7 @@ export default function App() {
         </div>
 
         {/* LAUNCH */}
-        {view === 'launch' && <div style={{ flex: 1, overflowY: 'auto', padding: 28 }}>
+        {view === 'launch' && <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '16px 14px 78px' : 28 }}>
           <div style={{ maxWidth: 900, margin: '0 auto', background: '#0B0B0D', border: `1px solid ${BR}`, borderRadius: 24, padding: '32px 28px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 22 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -389,9 +400,9 @@ export default function App() {
               <p style={{ color: MT, fontSize: isMobile ? 19 : 28, marginBottom: 28 }}>One click and your AI assistant is live 24/7</p>
               <button style={{ background: '#B6F53F', border: 'none', color: '#000', borderRadius: 999, fontSize: isMobile ? 24 : 38, fontWeight: 700, padding: isMobile ? '14px 30px' : '18px 52px', cursor: 'pointer' }} onClick={() => setView('vps')}>+ Run in Cloud</button>
               <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap', marginTop: 14 }}>
-                <button style={btn('ghost', true)} onClick={() => setView('agency')}>Open Agency Panel</button>
-                <button style={btn('ghost', true)} onClick={() => setView('connectors')}>Configure Connectors</button>
-                <button style={btn('ghost', true)} onClick={() => setView('models')}>Browse Free Models</button>
+                <button style={btn('ghost', true)} onClick={() => openView('agency')}>Open Agency Panel</button>
+                <button style={btn('ghost', true)} onClick={() => openView('connectors')}>Configure Connectors</button>
+                <button style={btn('ghost', true)} onClick={() => openView('models')}>Browse Free Models</button>
               </div>
             </div>
           </div>
@@ -662,6 +673,35 @@ export default function App() {
               </div>
             ))}
         </div>}
+
+        {isMobile && (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', gap: 4, padding: '8px 6px calc(8px + env(safe-area-inset-bottom))', borderTop: `1px solid ${BR}`, background: B2 }}>
+            {MOBILE_NAV_ITEMS.map(([v, icon, label]) => (
+              <button
+                key={v}
+                onClick={() => openView(v)}
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  border: 'none',
+                  background: view === v ? 'rgba(170,255,0,0.12)' : 'transparent',
+                  color: view === v ? L : MT,
+                  borderRadius: 10,
+                  padding: '8px 4px',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 2,
+                }}
+              >
+                <span style={{ fontSize: 14, lineHeight: 1 }}>{icon}</span>
+                <span style={{ lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{label}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* MODALS */}
