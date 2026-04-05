@@ -121,6 +121,29 @@ export function initDB() {
   }
 
   // Legacy skill ID migration (backward compatibility with older releases)
+  // Remove potential duplicates first to avoid UNIQUE(user_id, pack_id, skill_id) conflicts.
+  db.prepare(`
+    DELETE FROM installed_skills
+    WHERE skill_id = 'claude-opus-max-skill'
+      AND EXISTS (
+        SELECT 1
+        FROM installed_skills current
+        WHERE current.user_id = installed_skills.user_id
+          AND current.pack_id = installed_skills.pack_id
+          AND current.skill_id = 'claude-opus-max'
+      )
+  `).run();
+  db.prepare(`
+    DELETE FROM installed_skills
+    WHERE skill_id = 'codex-engineer-skill'
+      AND EXISTS (
+        SELECT 1
+        FROM installed_skills current
+        WHERE current.user_id = installed_skills.user_id
+          AND current.pack_id = installed_skills.pack_id
+          AND current.skill_id = 'codex-engineer'
+      )
+  `).run();
   db.prepare("UPDATE installed_skills SET skill_id = 'claude-opus-max' WHERE skill_id = 'claude-opus-max-skill'").run();
   db.prepare("UPDATE installed_skills SET skill_id = 'codex-engineer' WHERE skill_id = 'codex-engineer-skill'").run();
 
