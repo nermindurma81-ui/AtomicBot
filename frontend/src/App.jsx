@@ -276,6 +276,14 @@ export default function App() {
     const action = status === 'running' ? 'stop' : 'start';
     const res = await fetch(`/api/vps/${id}/${action}`, { method: 'POST', headers: api.headers() });
     const data = await res.json();
+    if (data.error) { alert(data.error); return; }
+    setVpsInst(p => p.map(v => v.id === id ? { ...v, status: data.status } : v));
+  }
+
+  async function syncVPS(id) {
+    const res = await fetch(`/api/vps/${id}/sync`, { method: 'POST', headers: api.headers() });
+    const data = await res.json();
+    if (data.error) { alert(data.error); return; }
     setVpsInst(p => p.map(v => v.id === id ? { ...v, status: data.status } : v));
   }
 
@@ -611,7 +619,7 @@ export default function App() {
         {/* VPS */}
         {view === 'vps' && <div style={{ flex: 1, overflowY: 'auto', padding: 28 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-            <div><h1 style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>VPS Instance</h1><p style={{ color: MT, fontSize: 13 }}>Cloud instance za AI workflow-ove 24/7.</p></div>
+            <div><h1 style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>VPS Instance</h1><p style={{ color: MT, fontSize: 13 }}>Cloud instance sa realnim start/stop webhook endpointima.</p></div>
             <button style={btn('primary')} onClick={() => setModal({ type: 'vps' })}>+ Nova instanca</button>
           </div>
           {vpsInst.length === 0 ? <div style={{ textAlign: 'center', padding: '50px 20px', color: MT }}><div style={{ fontSize: 36, marginBottom: 12 }}>☁️</div><div style={{ fontSize: 15, fontWeight: 700, color: TX, marginBottom: 6 }}>Nema instanci</div><p>Deploj VPS za 24/7 AI workflow-ove.</p></div>
@@ -623,6 +631,7 @@ export default function App() {
                   <div style={{ fontSize: 11, color: MT, marginTop: 2 }}>{v.provider} · <span style={{ color: v.status === 'running' ? L : MT }}>{v.status}</span></div>
                 </div>
                 <button style={btn('ghost', true)} onClick={() => toggleVPS(v.id, v.status)}>{v.status === 'running' ? 'Zaustavi' : 'Pokreni'}</button>
+                <button style={btn('ghost', true)} onClick={() => syncVPS(v.id)}>Sync</button>
                 <button style={btn('danger', true)} onClick={() => deleteVPS(v.id)}>Obriši</button>
               </div>
             ))}
@@ -792,9 +801,9 @@ function CronForm({ onSave, onClose }) {
 
 // ─── VPS Form ─────────────────────────────────────────────────────────────────
 function VPSForm({ onSave, onClose }) {
-  const [f, setF] = useState({ name: '', provider: 'railway' });
+  const [f, setF] = useState({ name: '', provider: 'railway', startUrl: '', stopUrl: '', statusUrl: '' });
   return (
-    <form onSubmit={e => { e.preventDefault(); if (!f.name) return; onSave(f); }}>
+    <form onSubmit={e => { e.preventDefault(); if (!f.name || !f.startUrl || !f.stopUrl) return; onSave({ name: f.name, provider: f.provider, config: { startUrl: f.startUrl, stopUrl: f.stopUrl, statusUrl: f.statusUrl } }); }}>
       <div style={{ marginBottom: 14 }}><label style={fl}>IME INSTANCE</label><input style={{ ...fi, fontSize: 13 }} placeholder="Moj AI Server" value={f.name} onChange={e => setF(p => ({ ...p, name: e.target.value }))} required /></div>
       <div style={{ marginBottom: 14 }}>
         <label style={fl}>PROVAJDER</label>
@@ -806,6 +815,9 @@ function VPSForm({ onSave, onClose }) {
           <option value="hetzner">Hetzner</option>
         </select>
       </div>
+      <div style={{ marginBottom: 10 }}><label style={fl}>START WEBHOOK URL</label><input style={{ ...fi, fontSize: 13 }} placeholder="https://.../start" value={f.startUrl} onChange={e => setF(p => ({ ...p, startUrl: e.target.value }))} /></div>
+      <div style={{ marginBottom: 10 }}><label style={fl}>STOP WEBHOOK URL</label><input style={{ ...fi, fontSize: 13 }} placeholder="https://.../stop" value={f.stopUrl} onChange={e => setF(p => ({ ...p, stopUrl: e.target.value }))} /></div>
+      <div style={{ marginBottom: 14 }}><label style={fl}>STATUS URL (opcionalno)</label><input style={{ ...fi, fontSize: 13 }} placeholder="https://.../status" value={f.statusUrl} onChange={e => setF(p => ({ ...p, statusUrl: e.target.value }))} /></div>
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
         <button type="button" style={btn('ghost')} onClick={onClose}>Otkaži</button>
         <button type="submit" style={btn('primary')}>Kreiraj</button>
