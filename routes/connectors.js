@@ -6,7 +6,8 @@ const router = Router();
 
 // Available connector types
 export const CONNECTOR_TYPES = [
-  { type: 'openrouter', name: 'OpenRouter', category: 'AI Providers', description: 'Access 100+ AI models', icon: '🔀', fields: ['apiKey'] },
+  { type: 'openrouter', name: 'OpenRouter', category: 'AI Providers', description: 'Access free OpenRouter models', icon: '🔀', fields: ['apiKey'] },
+  { type: 'ollama', name: 'Ollama (OpenRouter bridge)', category: 'AI Providers', description: 'Ollama-compatible IDs mapped to OpenRouter free models', icon: '🦙', fields: ['apiKey'] },
   { type: 'huggingface', name: 'Hugging Face', category: 'AI Providers', description: 'Open source AI models', icon: '🤗', fields: ['apiKey'] },
   { type: 'mistral', name: 'Mistral AI', category: 'AI Providers', description: 'Mistral language models', icon: '💨', fields: ['apiKey'] },
   { type: 'openai', name: 'OpenAI', category: 'AI Models', description: 'GPT-4 and GPT-3.5', icon: '🤖', fields: ['apiKey'] },
@@ -70,12 +71,12 @@ router.post('/:id/test', async (req, res) => {
   const config = JSON.parse(conn.config);
 
   try {
-    if (conn.type === 'openrouter') {
+    if (conn.type === 'openrouter' || conn.type === 'ollama') {
       const response = await fetch('https://openrouter.ai/api/v1/models', {
         headers: { 'Authorization': `Bearer ${config.apiKey}` }
       });
       if (!response.ok) throw new Error('Invalid API key');
-      return res.json({ success: true, message: 'OpenRouter connection successful' });
+      return res.json({ success: true, message: conn.type === 'ollama' ? 'Ollama bridge (OpenRouter) connection successful' : 'OpenRouter connection successful' });
     }
     if (conn.type === 'huggingface') {
       const response = await fetch('https://huggingface.co/api/whoami', {

@@ -6,7 +6,8 @@ const L = '#AAFF00', BG = '#0A0A0B', B2 = '#111113', B3 = '#1A1A1D',
 
 const CONNECTOR_TYPES = [
   { type: 'anthropic',       name: 'Anthropic',        cat: 'AI Models',    icon: '🧠', desc: 'Claude 3.5 Sonnet, Haiku — dodaj ključ za vlastiti billing', fields: ['apiKey'] },
-  { type: 'openrouter',      name: 'OpenRouter',        cat: 'AI Providers', icon: '🔀', desc: '100+ besplatnih i płatnih modela — openrouter.ai',            fields: ['apiKey'] },
+  { type: 'openrouter',      name: 'OpenRouter',        cat: 'AI Providers', icon: '🔀', desc: 'Free OpenRouter modeli za produkciju',            fields: ['apiKey'] },
+  { type: 'ollama',          name: 'Ollama Bridge',     cat: 'AI Providers', icon: '🦙', desc: 'Ollama stil model ID-eva preko OpenRouter free modela', fields: ['apiKey'] },
   { type: 'mistral',         name: 'Mistral AI',        cat: 'AI Providers', icon: '💨', desc: 'Mistral jezički modeli',                                        fields: ['apiKey'] },
   { type: 'openai',          name: 'OpenAI',            cat: 'AI Models',    icon: '🤖', desc: 'GPT-4o i GPT-4',                                               fields: ['apiKey'] },
   { type: 'telegram',        name: 'Telegram',          cat: 'Messengers',   icon: '✈️', desc: 'Telegram bot integracija',                                      fields: ['botToken', 'chatId'] },
@@ -353,7 +354,7 @@ export default function App() {
           <div style={{ width: 28, height: 28, borderRadius: '50%', background: BR, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{user.email?.[0]?.toUpperCase()}</div>
           <div style={{ flex: 1, overflow: 'hidden' }}>
             <div style={{ fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.email}</div>
-            <div style={{ fontSize: 9, color: L }}>Free plan</div>
+            <div style={{ fontSize: 9, color: L }}>{user.role === 'admin' ? 'Admin · Unlimited' : 'Free plan'}</div>
           </div>
           <span style={{ fontSize: 13, cursor: 'pointer', color: MT }} onClick={() => { localStorage.removeItem('ab_token'); setUser(null); }}>⇥</span>
         </div>

@@ -13,11 +13,19 @@ export const FREE_MODELS = {
 
 export const ALL_FREE_MODELS = Object.values(FREE_MODELS).flat();
 
-export async function callAI(model, messages, apiKeys = {}, stream = false) {
-  if (!model?.startsWith('openrouter/')) {
-    model = 'openrouter/mistralai/mistral-7b-instruct:free';
+
+function normalizeModel(model) {
+  if (!model) return 'openrouter/mistralai/mistral-7b-instruct:free';
+  if (model.startsWith('ollama/')) {
+    return `openrouter/${model.replace('ollama/', '')}`;
   }
-  return callOpenRouter(model.replace('openrouter/', ''), messages, apiKeys.openrouter, stream);
+  if (!model.startsWith('openrouter/')) return 'openrouter/mistralai/mistral-7b-instruct:free';
+  return model;
+}
+
+export async function callAI(model, messages, apiKeys = {}, stream = false) {
+  const normalized = normalizeModel(model);
+  return callOpenRouter(normalized.replace('openrouter/', ''), messages, apiKeys.openrouter, stream);
 }
 
 async function callOpenRouter(model, messages, apiKey, stream) {

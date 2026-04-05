@@ -14,7 +14,7 @@ function resolveApiKeys(userId) {
   connectors.forEach((connector) => {
     try {
       const cfg = JSON.parse(connector.config || '{}');
-      if (connector.type === 'openrouter') apiKeys.openrouter = cfg.apiKey;
+      if (connector.type === 'openrouter' || connector.type === 'ollama') apiKeys.openrouter = cfg.apiKey;
     } catch {}
   });
   return apiKeys;

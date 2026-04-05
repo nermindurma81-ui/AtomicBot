@@ -58,6 +58,8 @@ git push -u origin main
 | `OPENROUTER_API_KEY` | da | OpenRouter ključ za free modele |
 | `FRONTEND_URL` | ne | CORS origin |
 | `DB_PATH` | ne | putanja do SQLite baze |
+| `SINGLE_USER_MODE` | ne | `true` za jedan admin korisnik bez limita |
+| `OWNER_EMAIL` | ne | dozvoljeni email za registraciju u single-user modu |
 
 ## Lokalni razvoj
 
@@ -72,3 +74,8 @@ Backend: `http://localhost:3001`
 ## Napomena
 
 Projekt koristi isključivo OpenRouter kompatibilne modele na backendu. Ako model nije `openrouter/*`, backend ga automatski prebacuje na free fallback model.
+
+
+## Ollama kompatibilnost
+
+Ako koristiš `ollama/*` model ID, backend ga automatski mapira na OpenRouter free model (`openrouter/*`).

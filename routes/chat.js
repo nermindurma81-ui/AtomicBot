@@ -12,7 +12,7 @@ function resolveApiKeys(userId) {
   connectors.forEach((c) => {
     try {
       const cfg = JSON.parse(c.config);
-      if (c.type === 'openrouter') apiKeys.openrouter = cfg.apiKey;
+      if (c.type === 'openrouter' || c.type === 'ollama') apiKeys.openrouter = cfg.apiKey;
     } catch {
       // ignore malformed connector
     }

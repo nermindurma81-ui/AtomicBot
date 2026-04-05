@@ -25,6 +25,8 @@ export function initDB() {
       email TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
       plan TEXT DEFAULT 'free',
+      role TEXT DEFAULT 'user',
+      usage_limit INTEGER DEFAULT -1,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -108,6 +110,15 @@ export function initDB() {
       FOREIGN KEY (user_id) REFERENCES users(id)
     );
   `);
+
+
+  const userColumns = db.prepare("PRAGMA table_info(users)").all().map((c) => c.name);
+  if (!userColumns.includes('role')) {
+    db.exec("ALTER TABLE users ADD COLUMN role TEXT DEFAULT 'user'");
+  }
+  if (!userColumns.includes('usage_limit')) {
+    db.exec("ALTER TABLE users ADD COLUMN usage_limit INTEGER DEFAULT -1");
+  }
 
   console.log('Database initialized');
 }
