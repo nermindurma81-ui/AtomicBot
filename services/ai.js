@@ -12,6 +12,10 @@ export const FREE_MODELS = {
 
 export const ALL_FREE_MODELS = Object.values(FREE_MODELS).flat();
 
+const BLOCKED_MODELS = new Set([
+  'openrouter/qwen/qwen-2-7b-instruct:free',
+]);
+
 
 function normalizeModel(model) {
   if (!model) return 'openrouter/mistralai/mistral-7b-instruct:free';
@@ -19,6 +23,7 @@ function normalizeModel(model) {
     return `openrouter/${model.replace('ollama/', '')}`;
   }
   if (!model.startsWith('openrouter/')) return 'openrouter/mistralai/mistral-7b-instruct:free';
+  if (BLOCKED_MODELS.has(model)) return 'openrouter/mistralai/mistral-7b-instruct:free';
   return model;
 }
 

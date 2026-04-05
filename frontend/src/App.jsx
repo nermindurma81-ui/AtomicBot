@@ -3,6 +3,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 // ─── constants ────────────────────────────────────────────────────────────────
 const L = '#AAFF00', BG = '#0A0A0B', B2 = '#111113', B3 = '#1A1A1D',
   BR = '#2A2A2E', TX = '#E8E8EA', MT = '#6E6E78';
+const BLOCKED_MODEL_IDS = new Set(['openrouter/qwen/qwen-2-7b-instruct:free']);
 
 const CONNECTOR_TYPES = [
   { type: 'openrouter',      name: 'OpenRouter',        cat: 'AI Providers', icon: '🔀', desc: 'Free OpenRouter modeli za produkciju',            fields: ['apiKey'] },
@@ -163,7 +164,12 @@ export default function App() {
     api.get('/api/connectors').then(data => setConnectors(Array.isArray(data) ? data : []));
     api.get('/api/crons').then(data => setCronJobs(Array.isArray(data) ? data : []));
     api.get('/api/vps').then(data => setVpsInst(Array.isArray(data) ? data : []));
-    api.get('/api/models').then(data => { if (data.models) setModels(data.models); });
+    api.get('/api/models').then(data => {
+      if (!data.models) return;
+      const cleanModels = data.models.filter((m) => !BLOCKED_MODEL_IDS.has(m.id));
+      setModels(cleanModels);
+      if (BLOCKED_MODEL_IDS.has(selModel)) setSelModel(cleanModels[0]?.id || 'openrouter/mistralai/mistral-7b-instruct:free');
+    });
     api.get('/api/skills/packs').then(data => setSkillPacks(Array.isArray(data) ? data : []));
     api.get('/api/skills/installed').then(data => setInstalledSkills(Array.isArray(data) ? data : []));
   }
