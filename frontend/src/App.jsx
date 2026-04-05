@@ -35,11 +35,14 @@ const SKILLS = [
 
 // ─── API helper ───────────────────────────────────────────────────────────────
 const api = {
+  base: (() => (import.meta.env.VITE_API_BASE || '').trim().replace(/\/$/, ''))(),
   token: () => localStorage.getItem('ab_token'),
   headers: () => ({ 'Content-Type': 'application/json', 'Authorization': `Bearer ${api.token()}` }),
+  url: (path) => (/^https?:\/\//i.test(path) ? path : `${api.base}${path}`),
   request: async (url, options = {}) => {
     try {
-      const res = await fetch(url, options);
+      const endpoint = api.url(url);
+      const res = await fetch(endpoint, options);
       const contentType = (res.headers.get('content-type') || '').toLowerCase();
 
       if (contentType.includes('application/json')) {
@@ -56,7 +59,7 @@ const api = {
       const text = await res.text();
       const looksLikeHtml = text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<html');
       const fallbackError = looksLikeHtml
-        ? `Server vratio HTML umjesto JSON-a (ruta možda nije dostupna): ${url}`
+        ? `Server vratio HTML umjesto JSON-a (ruta možda nije dostupna): ${endpoint}${api.base ? '' : ' • Ako API nije na istom domenu, postavi VITE_API_BASE.'}`
         : `Neočekivan odgovor servera (${res.status} ${res.statusText})`;
 
       if (!res.ok) return { error: fallbackError };
@@ -512,8 +515,8 @@ export default function App() {
                     <option value="openrouter/mistralai/mistral-7b-instruct:free">Mistral 7B (Free)</option>
                     <option value="openrouter/meta-llama/llama-3-8b-instruct:free">Llama 3 8B (Free)</option>
                     <option value="openrouter/google/gemma-2-9b-it:free">Gemma 2 9B (Free)</option>
-                    <option value="openrouter/qwen/qwen-2-7b-instruct:free">Qwen 2 7B (Free)</option>
                     <option value="openrouter/deepseek/deepseek-r1:free">DeepSeek R1 (Free)</option>
+                    <option value="openrouter/microsoft/phi-3-mini-128k-instruct:free">Phi-3 Mini (Free)</option>
                   </>
                 )}
               </select>
@@ -674,8 +677,8 @@ export default function App() {
             { id: 'openrouter/mistralai/mistral-7b-instruct:free', name: 'Mistral 7B (Free)', provider: 'openrouter', context: 32768 },
             { id: 'openrouter/meta-llama/llama-3-8b-instruct:free', name: 'Llama 3 8B (Free)', provider: 'openrouter', context: 8192 },
             { id: 'openrouter/google/gemma-2-9b-it:free', name: 'Gemma 2 9B (Free)', provider: 'openrouter', context: 8192 },
-            { id: 'openrouter/qwen/qwen-2-7b-instruct:free', name: 'Qwen 2 7B (Free)', provider: 'openrouter', context: 32768 },
             { id: 'openrouter/deepseek/deepseek-r1:free', name: 'DeepSeek R1 (Free)', provider: 'openrouter', context: 65536 },
+            { id: 'openrouter/microsoft/phi-3-mini-128k-instruct:free', name: 'Phi-3 Mini (Free)', provider: 'openrouter', context: 131072 },
           ]).map(m => (
             <div key={m.id} onClick={() => setSelModel(m.id)} style={{ background: selModel === m.id ? 'rgba(170,255,0,0.04)' : B2, border: `1px solid ${selModel === m.id ? L : BR}`, borderRadius: 12, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer', marginBottom: 10 }}>
               <div style={{ width: 18, height: 18, borderRadius: '50%', border: `2px solid ${selModel === m.id ? L : BR}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
