@@ -788,7 +788,6 @@ function CronForm({ onSave, onClose }) {
           <option value="openrouter/mistralai/mistral-7b-instruct:free">Mistral 7B (Free)</option>
           <option value="openrouter/meta-llama/llama-3-8b-instruct:free">Llama 3 8B (Free)</option>
           <option value="openrouter/deepseek/deepseek-r1:free">DeepSeek R1 (Free)</option>
-          <option value="openrouter/deepseek/deepseek-r1:free">DeepSeek R1 (Free)</option>
         </select>
       </div>
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
