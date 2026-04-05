@@ -37,10 +37,29 @@ const SKILLS = [
 const api = {
   token: () => localStorage.getItem('ab_token'),
   headers: () => ({ 'Content-Type': 'application/json', 'Authorization': `Bearer ${api.token()}` }),
-  get: (url) => fetch(url, { headers: api.headers() }).then(r => r.json()),
-  post: (url, body) => fetch(url, { method: 'POST', headers: api.headers(), body: JSON.stringify(body) }).then(r => r.json()),
-  put: (url, body) => fetch(url, { method: 'PUT', headers: api.headers(), body: JSON.stringify(body) }).then(r => r.json()),
-  del: (url) => fetch(url, { method: 'DELETE', headers: api.headers() }).then(r => r.json()),
+  request: async (url, options = {}) => {
+    const res = await fetch(url, options);
+    const contentType = (res.headers.get('content-type') || '').toLowerCase();
+
+    if (contentType.includes('application/json')) {
+      const data = await res.json();
+      if (!res.ok) return { error: data?.error || data?.message || `HTTP ${res.status}` };
+      return data;
+    }
+
+    const text = await res.text();
+    const looksLikeHtml = text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<html');
+    const fallbackError = looksLikeHtml
+      ? `Server vratio HTML umjesto JSON-a (ruta možda nije dostupna): ${url}`
+      : `Neočekivan odgovor servera (${res.status} ${res.statusText})`;
+
+    if (!res.ok) return { error: fallbackError };
+    return { ok: true, raw: text };
+  },
+  get: (url) => api.request(url, { headers: api.headers() }),
+  post: (url, body) => api.request(url, { method: 'POST', headers: api.headers(), body: JSON.stringify(body) }),
+  put: (url, body) => api.request(url, { method: 'PUT', headers: api.headers(), body: JSON.stringify(body) }),
+  del: (url) => api.request(url, { method: 'DELETE', headers: api.headers() }),
 };
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
