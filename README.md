@@ -80,6 +80,13 @@ npm run dev
 Frontend: `http://localhost:5173`  
 Backend: `http://localhost:3001`
 
+## Railway build napomena (better-sqlite3)
+
+Ako build puca na `better-sqlite3` (`node-gyp`, Python, `No prebuilt binaries`), koristi Node 20 runtime.
+
+- `railway.toml` već pin-a Nixpacks na `NIXPACKS_NODE_VERSION=20`.
+- `package.json` engine je ograničen na `>=20 <22`.
+
 ## Napomena
 
 Projekt koristi isključivo OpenRouter kompatibilne modele na backendu. Ako model nije `openrouter/*`, backend ga automatski prebacuje na free fallback model.
