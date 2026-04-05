@@ -209,7 +209,7 @@ export default function App() {
     setActiveTask(p => ({ ...p, messages: [...(p?.messages || []), { id: aiMsgId, role: 'assistant', content: '' }] }));
 
     try {
-      const res = await fetch('/api/chat/stream', {
+      const res = await fetch(api.url('/api/chat/stream'), {
         method: 'POST',
         headers: api.headers(),
         body: JSON.stringify({ messages: history, model: selModel, taskId: tid }),

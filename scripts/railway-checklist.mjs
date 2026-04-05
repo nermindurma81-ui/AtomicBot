@@ -113,7 +113,10 @@ async function main() {
       }),
     }, token);
     const keyMissing = /api key/i.test(String(chat.data?.error || ''));
-    const chatOk = (chat.ok && typeof chat.data?.reply === 'string' && chat.data.reply.length > 0) || (chat.status === 500 && keyMissing);
+    const chatText = typeof chat.data?.reply === 'string'
+      ? chat.data.reply
+      : (typeof chat.data?.content === 'string' ? chat.data.content : '');
+    const chatOk = (chat.ok && chatText.length > 0) || (chat.status === 500 && keyMissing);
     addResult('POST /api/chat/complete', chatOk, `status=${chat.status}${chat.data?.error ? `, err=${chat.data.error}` : ''}`);
 
     const packs = await request('/api/skills/packs', {}, token);

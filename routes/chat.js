@@ -113,11 +113,14 @@ router.post('/stream', async (req, res) => {
 
 router.post('/complete', async (req, res) => {
   const { messages, model = 'openrouter/mistralai/mistral-7b-instruct:free' } = req.body;
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return res.status(400).json({ error: 'messages array is required' });
+  }
   const apiKeys = resolveApiKeys(req.user.id);
 
   try {
     const content = await callAI(model, messages, apiKeys, false);
-    res.json({ content });
+    res.json({ content, reply: content });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
