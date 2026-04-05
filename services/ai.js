@@ -60,7 +60,12 @@ async function callOpenRouter(model, messages, apiKey, stream) {
     });
   } catch (err) {
     if (err?.name === 'AbortError') throw new Error('OpenRouter timeout: model nije odgovorio na vrijeme.');
-    throw err;
+    const rawMsg = (err && err.message ? String(err.message).trim() : '');
+    const looksEmptyReason = /reason:\s*$/i.test(rawMsg);
+    const msg = (!rawMsg || looksEmptyReason)
+      ? 'Mrežna greška pri pozivu OpenRouter API-ja (provjeri API key i internet konekciju).'
+      : rawMsg;
+    throw new Error(msg);
   } finally {
     clearTimeout(timeout);
   }
