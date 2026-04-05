@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { getDB } from '../db.js';
 import { runAgencyTask } from '../services/agency.js';
+import { normalizeSkillId } from '../services/skills-registry.js';
 
 const router = Router();
 
@@ -36,7 +37,7 @@ router.post('/run', async (req, res) => {
 
   const db = getDB();
   const skillRows = db.prepare('SELECT skill_id FROM installed_skills WHERE user_id = ? AND active = 1').all(req.user.id);
-  const installedSkills = skillRows.map((row) => row.skill_id);
+  const installedSkills = [...new Set(skillRows.map((row) => normalizeSkillId(row.skill_id)))];
   const apiKeys = resolveApiKeys(req.user.id);
 
   if (!apiKeys.openrouter && !process.env.OPENROUTER_API_KEY && (!model || model.startsWith('openrouter/'))) {

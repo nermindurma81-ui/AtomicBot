@@ -45,6 +45,16 @@ export const SYSTEM_SKILL_PACKS = [
   },
 ];
 
+export const LEGACY_SKILL_ID_MAP = {
+  'claude-opus-max-skill': 'claude-opus-max',
+  'codex-engineer-skill': 'codex-engineer',
+};
+
+export function normalizeSkillId(skillId) {
+  if (!skillId) return skillId;
+  return LEGACY_SKILL_ID_MAP[skillId] || skillId;
+}
+
 export function getSkillPackById(id) {
   return SYSTEM_SKILL_PACKS.find((pack) => pack.id === id) || null;
 }

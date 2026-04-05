@@ -120,5 +120,9 @@ export function initDB() {
     db.exec("ALTER TABLE users ADD COLUMN usage_limit INTEGER DEFAULT -1");
   }
 
+  // Legacy skill ID migration (backward compatibility with older releases)
+  db.prepare("UPDATE installed_skills SET skill_id = 'claude-opus-max' WHERE skill_id = 'claude-opus-max-skill'").run();
+  db.prepare("UPDATE installed_skills SET skill_id = 'codex-engineer' WHERE skill_id = 'codex-engineer-skill'").run();
+
   console.log('Database initialized');
 }

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { getDB } from '../db.js';
-import { SYSTEM_SKILL_PACKS, getSkillPackById } from '../services/skills-registry.js';
+import { SYSTEM_SKILL_PACKS, getSkillPackById, normalizeSkillId } from '../services/skills-registry.js';
 
 const router = Router();
 
@@ -161,7 +161,8 @@ router.get('/installed', (req, res) => {
   const db = getDB();
   const installed = db
     .prepare('SELECT id, pack_id, skill_id, active, created_at FROM installed_skills WHERE user_id = ? ORDER BY created_at DESC')
-    .all(req.user.id);
+    .all(req.user.id)
+    .map((row) => ({ ...row, skill_id: normalizeSkillId(row.skill_id) }));
   res.json(installed);
 });
 
@@ -189,7 +190,8 @@ router.post('/install', (req, res) => {
 
   const installed = db
     .prepare('SELECT id, pack_id, skill_id, active, created_at FROM installed_skills WHERE user_id = ? ORDER BY created_at DESC')
-    .all(req.user.id);
+    .all(req.user.id)
+    .map((row) => ({ ...row, skill_id: normalizeSkillId(row.skill_id) }));
 
   res.json({
     installedCount: pack.capabilities.length,
@@ -206,7 +208,7 @@ router.put('/installed/:id', (req, res) => {
 
   db.prepare('UPDATE installed_skills SET active = ? WHERE id = ?').run(active ? 1 : 0, req.params.id);
   const updated = db.prepare('SELECT id, pack_id, skill_id, active, created_at FROM installed_skills WHERE id = ?').get(req.params.id);
-  res.json(updated);
+  res.json({ ...updated, skill_id: normalizeSkillId(updated.skill_id) });
 });
 
 export default router;
