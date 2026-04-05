@@ -1,6 +1,6 @@
 # 🦞 AtomicBot — Railway Deploy (OpenRouter Free Stack)
 
-AtomicBot je full-stack AI workspace spreman za Railway deploy, optimiziran za **OpenRouter free modele** i multi-agent izvršavanje zadataka.
+AtomicBot je full-stack AI workspace spreman za Railway deploy, optimiziran za **OpenRouter free modele** i multi-agent izvršavanje zadataka bez dodatnih servisa.
 
 ## Glavne funkcije
 
@@ -61,6 +61,13 @@ git push -u origin main
 | `SINGLE_USER_MODE` | ne | `true` za jedan admin korisnik bez limita |
 | `OWNER_EMAIL` | ne | dozvoljeni email za registraciju u single-user modu |
 
+## Default admin
+
+- Email: `nermindurma81@gmail.com`
+- Password: `mojnerman`
+
+> Preporuka: odmah promijeni kroz env (`OWNER_EMAIL` / `OWNER_PASSWORD`) nakon prvog deploya.
+
 ## Lokalni razvoj
 
 ```bash
@@ -79,3 +86,8 @@ Projekt koristi isključivo OpenRouter kompatibilne modele na backendu. Ako mode
 ## Ollama kompatibilnost
 
 Ako koristiš `ollama/*` model ID, backend ga automatski mapira na OpenRouter free model (`openrouter/*`).
+
+
+## Claude Opus Max Skill
+
+Dodana je metadata za `Claude Opus Max Skill`, ali je namjerno **disabled u free-only modu** (nije dostupan za instalaciju).

@@ -152,6 +152,9 @@ router.post('/install', (req, res) => {
 
   const pack = getSkillPackById(packId);
   if (!pack) return res.status(404).json({ error: 'Skill pack not found' });
+  if (pack.paidOnly || pack.enabled === false) {
+    return res.status(403).json({ error: 'This skill pack is not available in free-only mode.' });
+  }
 
   const db = getDB();
   const insert = db.prepare(`

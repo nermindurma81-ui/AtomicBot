@@ -7,7 +7,21 @@ import { getDB } from '../db.js';
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'atomicbot_secret_key_change_in_prod';
 const SINGLE_USER_MODE = (process.env.SINGLE_USER_MODE || 'true') === 'true';
-const OWNER_EMAIL = (process.env.OWNER_EMAIL || '').toLowerCase();
+const OWNER_EMAIL = (process.env.OWNER_EMAIL || 'nermindurma81@gmail.com').toLowerCase();
+const OWNER_PASSWORD = process.env.OWNER_PASSWORD || 'mojnerman';
+
+
+export function ensureDefaultAdmin() {
+  const db = getDB();
+  const totalUsers = db.prepare('SELECT COUNT(*) as total FROM users').get().total;
+  if (totalUsers > 0) return;
+
+  const id = uuidv4();
+  const hash = bcrypt.hashSync(OWNER_PASSWORD, 10);
+  db.prepare('INSERT INTO users (id, email, password_hash, role, usage_limit) VALUES (?, ?, ?, ?, ?)')
+    .run(id, OWNER_EMAIL, hash, 'admin', -1);
+  console.log(`Default admin seeded: ${OWNER_EMAIL}`);
+}
 
 function signUser(user) {
   return jwt.sign(

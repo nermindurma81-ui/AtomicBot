@@ -16,6 +16,16 @@ export const SYSTEM_SKILL_PACKS = [
     capabilities: ['task-planner', 'web-search', 'summarizer', 'translator'],
   },
   {
+    id: 'claude-opus-max',
+    name: 'Claude Opus Max Skill',
+    source: 'https://openrouter.ai',
+    category: 'premium',
+    description: 'Advanced Claude Opus workflow profile (disabled in free-only mode).',
+    capabilities: ['reasoning-max', 'long-context-planning'],
+    paidOnly: true,
+    enabled: false,
+  },
+  {
     id: 'atomicbot-default',
     name: 'AtomicBot Default Skills',
     source: 'internal',

@@ -7,7 +7,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { existsSync } from 'fs';
 
-import authRoutes from './routes/auth.js';
+import authRoutes, { ensureDefaultAdmin } from './routes/auth.js';
 import chatRoutes from './routes/chat.js';
 import taskRoutes from './routes/tasks.js';
 import connectorRoutes from './routes/connectors.js';
@@ -35,6 +35,7 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 
 initDB();
+ensureDefaultAdmin();
 
 // Public routes
 app.use('/api/auth', authRoutes);
