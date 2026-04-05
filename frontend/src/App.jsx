@@ -219,11 +219,15 @@ export default function App() {
       const reader = res.body.getReader();
       const dec = new TextDecoder();
       let full = '';
+      let sseBuffer = '';
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        for (const line of dec.decode(value).split('\n')) {
+      const consumeSseChunk = (chunkText) => {
+        sseBuffer += chunkText;
+        const lines = sseBuffer.split('\n');
+        sseBuffer = lines.pop() || '';
+
+        for (const rawLine of lines) {
+          const line = rawLine.trim();
           if (!line.startsWith('data: ')) continue;
           const d = line.slice(6);
           if (d === '[DONE]') continue;
@@ -239,6 +243,32 @@ export default function App() {
             if (e.message && !e.message.includes('JSON')) throw e;
           }
         }
+      };
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        consumeSseChunk(dec.decode(value, { stream: true }));
+      }
+
+      consumeSseChunk(dec.decode());
+
+      const finalLine = sseBuffer.trim();
+      if (finalLine.startsWith('data: ') && finalLine.slice(6) !== '[DONE]') {
+        try {
+          const parsed = JSON.parse(finalLine.slice(6));
+          const delta = parsed.delta || '';
+          if (delta) {
+            full += delta;
+            setActiveTask(p => ({ ...p, messages: p.messages.map(m => m.id === aiMsgId ? { ...m, content: full } : m) }));
+          }
+        } catch {
+          // ignore trailing partial line parse failures
+        }
+      }
+
+      if (!full.trim()) {
+        throw new Error('Model nije vratio sadržaj. Provjeri model/ključ i pokušaj ponovo.');
       }
 
       // Replace temp msg with real id
