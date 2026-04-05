@@ -4,6 +4,8 @@ buildCommand = "npm install && npm run build"
 
 [variables]
 NIXPACKS_NODE_VERSION = "20"
+FRONTEND_URL = "https://atomicbot-production-1e32.up.railway.app"
+VITE_API_BASE = "https://atomicbot-production-1e32.up.railway.app"
 
 [deploy]
 startCommand = "npm start"

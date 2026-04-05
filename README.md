@@ -63,6 +63,10 @@ git push -u origin main
 | `OWNER_PASSWORD` | ne | početna admin lozinka (preporučeno u produkciji) |
 | `VITE_API_BASE` | ne | puna API baza ako frontend i API nisu na istoj domeni (npr. `https://api.example.com`) |
 
+Za trenutni Railway deploy koristi:
+- `FRONTEND_URL=https://atomicbot-production-1e32.up.railway.app`
+- `VITE_API_BASE=https://atomicbot-production-1e32.up.railway.app`
+
 ## Default admin
 
 Admin korisnik se seed-a na startupu koristeći env varijable:
