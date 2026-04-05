@@ -1,0 +1,702 @@
+import { useState, useRef, useEffect, useCallback } from 'react';
+
+// ─── constants ────────────────────────────────────────────────────────────────
+const L = '#AAFF00', BG = '#0A0A0B', B2 = '#111113', B3 = '#1A1A1D',
+  BR = '#2A2A2E', TX = '#E8E8EA', MT = '#6E6E78';
+
+const CONNECTOR_TYPES = [
+  { type: 'anthropic',       name: 'Anthropic',        cat: 'AI Models',    icon: '🧠', desc: 'Claude 3.5 Sonnet, Haiku — dodaj ključ za vlastiti billing', fields: ['apiKey'] },
+  { type: 'openrouter',      name: 'OpenRouter',        cat: 'AI Providers', icon: '🔀', desc: '100+ besplatnih i płatnih modela — openrouter.ai',            fields: ['apiKey'] },
+  { type: 'mistral',         name: 'Mistral AI',        cat: 'AI Providers', icon: '💨', desc: 'Mistral jezički modeli',                                        fields: ['apiKey'] },
+  { type: 'openai',          name: 'OpenAI',            cat: 'AI Models',    icon: '🤖', desc: 'GPT-4o i GPT-4',                                               fields: ['apiKey'] },
+  { type: 'telegram',        name: 'Telegram',          cat: 'Messengers',   icon: '✈️', desc: 'Telegram bot integracija',                                      fields: ['botToken', 'chatId'] },
+  { type: 'discord',         name: 'Discord',           cat: 'Messengers',   icon: '🎮', desc: 'Discord bot integracija',                                       fields: ['botToken', 'channelId'] },
+  { type: 'slack',           name: 'Slack',             cat: 'Messengers',   icon: '💬', desc: 'Slack workspace integracija',                                   fields: ['botToken', 'channelId'] },
+  { type: 'google_workspace',name: 'Google Workspace',  cat: 'Skills',       icon: '🌐', desc: 'Gmail, Drive, Calendar',                                        fields: ['clientId', 'clientSecret'] },
+  { type: 'notion',          name: 'Notion',            cat: 'Skills',       icon: '📓', desc: 'Bilješke i baze podataka',                                      fields: ['apiKey', 'databaseId'] },
+  { type: 'github',          name: 'GitHub',            cat: 'Skills',       icon: '🐙', desc: 'Code repozitoriji',                                             fields: ['token', 'repo'] },
+  { type: 'webhook',         name: 'Webhook',           cat: 'Skills',       icon: '🔗', desc: 'Custom HTTP webhooks',                                          fields: ['url', 'secret'] },
+];
+
+const SKILLS = [
+  { id: 'web-search',       name: 'Web Search',          desc: 'Pretražuj web u realnom vremenu',              icon: '🔍', cat: 'Research',     free: true },
+  { id: 'code-interpreter', name: 'Code Interpreter',    desc: 'Izvršavaj Python kod i analiziraj podatke',   icon: '💻', cat: 'Development',  free: true },
+  { id: 'summarizer',       name: 'Doc Summarizer',      desc: 'Sažmi duge dokumente i PDF-ove',              icon: '📄', cat: 'Productivity',  free: true },
+  { id: 'translator',       name: 'Translator',          desc: 'Prevedi tekst između 50+ jezika',             icon: '🌍', cat: 'Language',      free: true },
+  { id: 'task-planner',     name: 'Task Planner',        desc: 'Razloži ciljeve na akcione zadaće',           icon: '✅', cat: 'Productivity',  free: true },
+  { id: 'data-analyst',     name: 'Data Analyst',        desc: 'Analiziraj CSV/Excel i pravi grafikone',      icon: '📊', cat: 'Analytics',     free: true },
+  { id: 'email-manager',    name: 'Email Manager',       desc: 'Inbox, slanje emaila, upravljanje kalendarom',icon: '✉️', cat: 'Communication', free: false, connector: 'google_workspace' },
+  { id: 'calendar',         name: 'Calendar Asst.',      desc: 'Upravljaj Google Kalendarom',                 icon: '📅', cat: 'Productivity',  free: false, connector: 'google_workspace' },
+  { id: 'github-assistant', name: 'GitHub Asst.',        desc: 'Issues, PR-ovi, code review',                icon: '🐙', cat: 'Development',  free: false, connector: 'github' },
+  { id: 'notion-assistant', name: 'Notion Asst.',        desc: 'Kreiraj i upravljaj Notion stranicama',      icon: '📓', cat: 'Productivity',  free: false, connector: 'notion' },
+  { id: 'telegram-bot',     name: 'Telegram Bot',        desc: 'Deploj AI asistenta na Telegram',            icon: '✈️', cat: 'Messengers',    free: false, connector: 'telegram' },
+  { id: 'discord-bot',      name: 'Discord Bot',         desc: 'Deploj AI asistenta na Discord',             icon: '🎮', cat: 'Messengers',    free: false, connector: 'discord' },
+];
+
+// ─── API helper ───────────────────────────────────────────────────────────────
+const api = {
+  token: () => localStorage.getItem('ab_token'),
+  headers: () => ({ 'Content-Type': 'application/json', 'Authorization': `Bearer ${api.token()}` }),
+  get: (url) => fetch(url, { headers: api.headers() }).then(r => r.json()),
+  post: (url, body) => fetch(url, { method: 'POST', headers: api.headers(), body: JSON.stringify(body) }).then(r => r.json()),
+  put: (url, body) => fetch(url, { method: 'PUT', headers: api.headers(), body: JSON.stringify(body) }).then(r => r.json()),
+  del: (url) => fetch(url, { method: 'DELETE', headers: api.headers() }).then(r => r.json()),
+};
+
+// ─── helpers ──────────────────────────────────────────────────────────────────
+function fmt(text) {
+  if (!text) return null;
+  return text.split(/(```[\s\S]*?```)/g).map((seg, i) => {
+    if (seg.startsWith('```')) {
+      const nl = seg.indexOf('\n');
+      const code = nl > -1 ? seg.slice(nl + 1, -3) : seg.slice(3, -3);
+      return <pre key={i} style={{ background: BG, border: `1px solid ${BR}`, borderRadius: 8, padding: '10px 14px', fontFamily: 'monospace', fontSize: 12, overflowX: 'auto', margin: '6px 0', whiteSpace: 'pre-wrap', color: TX }}><code>{code}</code></pre>;
+    }
+    return seg.split('\n').map((line, j) => (
+      <span key={`${i}-${j}`}>
+        {line.split(/(`[^`]+`)/g).map((p, k) => p.startsWith('`')
+          ? <code key={k} style={{ fontFamily: 'monospace', fontSize: 12, background: B3, border: `1px solid ${BR}`, padding: '1px 5px', borderRadius: 3 }}>{p.slice(1, -1)}</code>
+          : p
+        )}
+        <br />
+      </span>
+    ));
+  });
+}
+
+const btn = (v, sm) => ({
+  padding: sm ? '5px 12px' : '9px 18px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+  cursor: 'pointer', fontFamily: 'inherit',
+  border: v === 'primary' ? 'none' : v === 'danger' ? '1px solid #ff5555' : `1px solid ${BR}`,
+  background: v === 'primary' ? L : 'transparent',
+  color: v === 'primary' ? '#000' : v === 'danger' ? '#ff5555' : TX,
+});
+const fi = { width: '100%', background: B3, border: `1px solid ${BR}`, borderRadius: 8, padding: '10px 13px', color: TX, fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' };
+const fl = { fontSize: 11, color: MT, marginBottom: 5, display: 'block', letterSpacing: 0.7, textTransform: 'uppercase' };
+
+// ─── App ──────────────────────────────────────────────────────────────────────
+export default function App() {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [view, setView] = useState('chat');
+  const [tasks, setTasks] = useState([]);
+  const [activeTid, setActiveTid] = useState(null);
+  const [activeTask, setActiveTask] = useState(null);
+  const [connectors, setConnectors] = useState([]);
+  const [cronJobs, setCronJobs] = useState([]);
+  const [vpsInst, setVpsInst] = useState([]);
+  const [models, setModels] = useState([]);
+  const [selModel, setSelModel] = useState('claude-haiku-4-5-20251001');
+  const [inp, setInp] = useState('');
+  const [streaming, setStreaming] = useState(false);
+  const [modal, setModal] = useState(null);
+  const [skillSrch, setSkillSrch] = useState('');
+  const [connTab, setConnTab] = useState('All');
+  const msgEnd = useRef(null);
+  const ta = useRef(null);
+
+  useEffect(() => { msgEnd.current?.scrollIntoView({ behavior: 'smooth' }); });
+
+  // Init — check token
+  useEffect(() => {
+    const token = localStorage.getItem('ab_token');
+    if (!token) { setLoading(false); return; }
+    api.get('/api/auth/me').then(data => {
+      if (data.user) { setUser(data.user); loadData(); }
+      else { localStorage.removeItem('ab_token'); }
+      setLoading(false);
+    }).catch(() => { setLoading(false); });
+  }, []);
+
+  function loadData() {
+    api.get('/api/tasks').then(data => setTasks(Array.isArray(data) ? data : []));
+    api.get('/api/connectors').then(data => setConnectors(Array.isArray(data) ? data : []));
+    api.get('/api/crons').then(data => setCronJobs(Array.isArray(data) ? data : []));
+    api.get('/api/vps').then(data => setVpsInst(Array.isArray(data) ? data : []));
+    api.get('/api/models').then(data => { if (data.models) setModels(data.models); });
+  }
+
+  async function loadTask(id) {
+    const data = await api.get(`/api/tasks/${id}`);
+    setActiveTask(data);
+    setActiveTid(id);
+    setView('chat');
+  }
+
+  async function sendMsg() {
+    if (!inp.trim() || streaming) return;
+    const content = inp.trim();
+    setInp('');
+    if (ta.current) ta.current.style.height = 'auto';
+
+    let tid = activeTid;
+    let task = activeTask;
+
+    if (!tid) {
+      task = await api.post('/api/tasks', { title: content.slice(0, 60) });
+      tid = task.id;
+      setTasks(p => [task, ...p]);
+      setActiveTid(tid);
+      setActiveTask({ ...task, messages: [] });
+    }
+
+    // Save user message to backend
+    const userMsg = await api.post(`/api/tasks/${tid}/messages`, { role: 'user', content });
+    setActiveTask(p => ({ ...p, messages: [...(p?.messages || []), userMsg] }));
+    setStreaming(true);
+
+    const history = [...(task?.messages || []), userMsg].map(m => ({ role: m.role, content: m.content }));
+    const aiMsgId = `tmp-${Date.now()}`;
+    setActiveTask(p => ({ ...p, messages: [...(p?.messages || []), { id: aiMsgId, role: 'assistant', content: '' }] }));
+
+    try {
+      const res = await fetch('/api/chat/stream', {
+        method: 'POST',
+        headers: api.headers(),
+        body: JSON.stringify({ messages: history, model: selModel, taskId: tid }),
+      });
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      let full = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        for (const line of dec.decode(value).split('\n')) {
+          if (!line.startsWith('data: ')) continue;
+          const d = line.slice(6);
+          if (d === '[DONE]') continue;
+          try {
+            const parsed = JSON.parse(d);
+            if (parsed.error) throw new Error(parsed.error);
+            const delta = parsed.delta || '';
+            if (delta) {
+              full += delta;
+              setActiveTask(p => ({ ...p, messages: p.messages.map(m => m.id === aiMsgId ? { ...m, content: full } : m) }));
+            }
+          } catch (e) {
+            if (e.message && !e.message.includes('JSON')) throw e;
+          }
+        }
+      }
+
+      // Replace temp msg with real id
+      setActiveTask(p => ({ ...p, messages: p.messages.map(m => m.id === aiMsgId ? { ...m, id: `real-${Date.now()}` } : m) }));
+      setTasks(p => p.map(t => t.id === tid ? { ...t, updated_at: new Date().toISOString() } : t));
+
+    } catch (err) {
+      setActiveTask(p => ({ ...p, messages: p.messages.map(m => m.id === aiMsgId ? { ...m, content: `⚠️ Greška: ${err.message}` } : m) }));
+    }
+
+    setStreaming(false);
+  }
+
+  async function deleteTask(id) {
+    await api.del(`/api/tasks/${id}`);
+    setTasks(p => p.filter(t => t.id !== id));
+    if (activeTid === id) { setActiveTid(null); setActiveTask(null); }
+  }
+
+  async function addConnector(type, config) {
+    const existing = connectors.find(c => c.type === type);
+    if (existing) {
+      const updated = await api.put(`/api/connectors/${existing.id}`, { config, active: true });
+      setConnectors(p => p.map(c => c.id === existing.id ? updated : c));
+    } else {
+      const def = CONNECTOR_TYPES.find(c => c.type === type);
+      const created = await api.post('/api/connectors', { type, name: def.name, config });
+      setConnectors(p => [...p, created]);
+    }
+    setModal(null);
+  }
+
+  async function toggleConnector(id, active) {
+    const updated = await api.put(`/api/connectors/${id}`, { active: !active });
+    setConnectors(p => p.map(c => c.id === id ? updated : c));
+  }
+
+  async function removeConnector(id) {
+    await api.del(`/api/connectors/${id}`);
+    setConnectors(p => p.filter(c => c.id !== id));
+  }
+
+  async function addCron(data) {
+    const job = await api.post('/api/crons', data);
+    setCronJobs(p => [...p, job]);
+    setModal(null);
+  }
+
+  async function toggleCron(id, active) {
+    const updated = await api.put(`/api/crons/${id}`, { active: !active });
+    setCronJobs(p => p.map(c => c.id === id ? updated : c));
+  }
+
+  async function deleteCron(id) {
+    await api.del(`/api/crons/${id}`);
+    setCronJobs(p => p.filter(c => c.id !== id));
+  }
+
+  async function runCron(job) {
+    const { result } = await api.post(`/api/crons/${job.id}/run`, {});
+    const task = await api.post('/api/tasks', { title: `[Cron] ${job.name}` });
+    await api.post(`/api/tasks/${task.id}/messages`, { role: 'assistant', content: result || 'Zadaća završena.' });
+    await loadTask(task.id);
+    loadData();
+  }
+
+  async function addVPS(data) {
+    const inst = await api.post('/api/vps', data);
+    setVpsInst(p => [...p, inst]);
+    setModal(null);
+  }
+
+  async function toggleVPS(id, status) {
+    const action = status === 'running' ? 'stop' : 'start';
+    const res = await fetch(`/api/vps/${id}/${action}`, { method: 'POST', headers: api.headers() });
+    const data = await res.json();
+    setVpsInst(p => p.map(v => v.id === id ? { ...v, status: data.status } : v));
+  }
+
+  async function deleteVPS(id) {
+    await api.del(`/api/vps/${id}`);
+    setVpsInst(p => p.filter(v => v.id !== id));
+  }
+
+  if (loading) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: BG }}>
+      <div style={{ fontSize: 32 }}>🦞</div>
+    </div>
+  );
+
+  if (!user) return <AuthScreen onLogin={(u, token) => { localStorage.setItem('ab_token', token); setUser(u); loadData(); }} />;
+
+  const connCats = ['All', ...new Set(CONNECTOR_TYPES.map(c => c.cat))];
+  const filtConn = connTab === 'All' ? CONNECTOR_TYPES : CONNECTOR_TYPES.filter(c => c.cat === connTab);
+
+  return (
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: BG, color: TX }}>
+      {/* SIDEBAR */}
+      <div style={{ width: 220, minWidth: 220, background: B2, borderRight: `1px solid ${BR}`, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '14px 14px 12px', borderBottom: `1px solid ${BR}` }}>
+            <div style={{ width: 26, height: 26, background: L, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 15, color: '#000', flexShrink: 0 }}>+</div>
+            <span style={{ fontWeight: 800, fontSize: 12, letterSpacing: 1 }}>ATOMIC BOT</span>
+          </div>
+          <div onClick={() => { setActiveTid(null); setActiveTask(null); setView('chat'); }} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', cursor: 'pointer', fontSize: 12, color: L }}>+ Nova zadaća</div>
+          {[['connectors', '⚡', 'Connectors'], ['skills', '🌟', 'Clawhub Skills'], ['models', '✦', 'AI Modeli'], ['vps', '☁', 'VPS Instanca'], ['crons', '⏱', 'Cron Jobs']].map(([v, icon, label]) => (
+            <div key={v} onClick={() => setView(v)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', cursor: 'pointer', fontSize: 12, color: view === v ? L : MT, background: view === v ? 'rgba(170,255,0,0.06)' : 'transparent' }}>
+              <span>{icon}</span><span>{label}</span>
+            </div>
+          ))}
+          {tasks.length > 0 && (
+            <>
+              <div style={{ fontSize: 9, color: MT, letterSpacing: 1.5, padding: '12px 14px 4px', textTransform: 'uppercase' }}>Zadaće</div>
+              {tasks.map(t => (
+                <div key={t.id} onClick={() => loadTask(t.id)} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '5px 14px', cursor: 'pointer', fontSize: 11, color: t.id === activeTid ? TX : MT, borderLeft: `2px solid ${t.id === activeTid ? L : 'transparent'}` }}>
+                  <div style={{ width: 5, height: 5, borderRadius: '50%', background: t.status === 'running' ? L : BR, flexShrink: 0 }} />
+                  <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title}</span>
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+        <div style={{ padding: '10px 12px', borderTop: `1px solid ${BR}`, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ width: 28, height: 28, borderRadius: '50%', background: BR, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{user.email?.[0]?.toUpperCase()}</div>
+          <div style={{ flex: 1, overflow: 'hidden' }}>
+            <div style={{ fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.email}</div>
+            <div style={{ fontSize: 9, color: L }}>Pro plan</div>
+          </div>
+          <span style={{ fontSize: 13, cursor: 'pointer', color: MT }} onClick={() => { localStorage.removeItem('ab_token'); setUser(null); }}>⇥</span>
+        </div>
+      </div>
+
+      {/* MAIN */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+
+        {/* CHAT */}
+        {view === 'chat' && <>
+          <div style={{ padding: '12px 20px', borderBottom: `1px solid ${BR}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: B2, flexShrink: 0 }}>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700 }}>{activeTask ? activeTask.title : 'Nova zadaća'}</div>
+              {activeTask && <div style={{ fontSize: 10, color: MT, marginTop: 1 }}>{activeTask.messages?.length} poruka</div>}
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <select style={{ background: B3, border: `1px solid ${BR}`, borderRadius: 7, padding: '5px 9px', color: TX, fontSize: 11, outline: 'none', cursor: 'pointer' }} value={selModel} onChange={e => setSelModel(e.target.value)}>
+                {models.length > 0 ? models.map(m => <option key={m.id} value={m.id}>{m.name}</option>) : (
+                  <>
+                    <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option>
+                    <option value="claude-sonnet-4-20250514">Claude Sonnet 4</option>
+                    <option value="openrouter/mistralai/mistral-7b-instruct:free">Mistral 7B (Free)</option>
+                    <option value="openrouter/meta-llama/llama-3-8b-instruct:free">Llama 3 8B (Free)</option>
+                    <option value="openrouter/deepseek/deepseek-r1:free">DeepSeek R1 (Free)</option>
+                  </>
+                )}
+              </select>
+              {activeTask && <button style={btn('ghost', true)} onClick={() => deleteTask(activeTask.id)}>Obriši</button>}
+            </div>
+          </div>
+
+          <div style={{ flex: 1, overflowY: 'auto', padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {!activeTask && (
+              <div style={{ textAlign: 'center', margin: 'auto', padding: '30px 20px' }}>
+                <div style={{ fontSize: 52, marginBottom: 14 }}>🦞</div>
+                <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 6 }}>Čime mogu pomoći?</h2>
+                <p style={{ color: MT, fontSize: 13, maxWidth: 360, margin: '0 auto 22px' }}>AI asistent spreman za kodiranje, pisanje, istraživanje i planiranje.</p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, maxWidth: 420, margin: '0 auto' }}>
+                  {['Napiši Python kod', 'Napravi biznis plan', 'Objasni machine learning', 'Planiraj mi sedmicu'].map(s => (
+                    <div key={s} onClick={() => { setInp(s); ta.current?.focus(); }} style={{ background: B2, border: `1px solid ${BR}`, borderRadius: 9, padding: '10px 13px', cursor: 'pointer', fontSize: 12, color: MT }}
+                      onMouseEnter={e => { e.currentTarget.style.borderColor = L; e.currentTarget.style.color = TX; }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = BR; e.currentTarget.style.color = MT; }}>{s}</div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {activeTask?.messages?.map(m => (
+              <div key={m.id} style={{ display: 'flex', gap: 9, alignItems: 'flex-start', flexDirection: m.role === 'user' ? 'row-reverse' : 'row' }}>
+                <div style={{ width: 28, height: 28, borderRadius: 7, background: m.role === 'assistant' ? L : BR, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: m.role === 'assistant' ? '#000' : TX, flexShrink: 0 }}>
+                  {m.role === 'assistant' ? '+' : user.email?.[0]?.toUpperCase()}
+                </div>
+                <div style={{ maxWidth: '74%', padding: '10px 14px', borderRadius: 11, fontSize: 13, lineHeight: 1.65, background: m.role === 'user' ? 'rgba(170,255,0,0.09)' : B3, border: `1px solid ${m.role === 'user' ? 'rgba(170,255,0,0.2)' : BR}`, borderTopLeftRadius: m.role === 'assistant' ? 2 : 11, borderTopRightRadius: m.role === 'user' ? 2 : 11 }}>
+                  {fmt(m.content)}
+                </div>
+              </div>
+            ))}
+
+            {streaming && (
+              <div style={{ display: 'flex', gap: 9, alignItems: 'flex-start' }}>
+                <div style={{ width: 28, height: 28, borderRadius: 7, background: L, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: '#000', flexShrink: 0 }}>+</div>
+                <div style={{ padding: '10px 14px', borderRadius: 11, background: B3, border: `1px solid ${BR}`, borderTopLeftRadius: 2 }}>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    {[0, 150, 300].map(d => <div key={d} style={{ width: 5, height: 5, background: L, borderRadius: '50%', animation: `pulse 0.8s ${d}ms infinite` }} />)}
+                  </div>
+                </div>
+              </div>
+            )}
+            <div ref={msgEnd} />
+          </div>
+
+          <div style={{ padding: '12px 20px', borderTop: `1px solid ${BR}`, background: B2, flexShrink: 0 }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+              <textarea ref={ta} style={{ flex: 1, background: B3, border: `1px solid ${BR}`, borderRadius: 11, padding: '10px 14px', color: TX, fontSize: 13, resize: 'none', outline: 'none', minHeight: 44, maxHeight: 160, fontFamily: 'inherit' }}
+                placeholder="Pošalji poruku Atomic Botu…" value={inp}
+                onChange={e => { setInp(e.target.value); e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 160) + 'px'; }}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); } }} rows={1} />
+              <button onClick={sendMsg} disabled={!inp.trim() || streaming} style={{ width: 42, height: 42, borderRadius: 9, background: !inp.trim() || streaming ? BR : L, border: 'none', cursor: !inp.trim() || streaming ? 'not-allowed' : 'pointer', fontSize: 17, color: !inp.trim() || streaming ? MT : '#000', flexShrink: 0 }}>↑</button>
+            </div>
+            <div style={{ fontSize: 10, color: MT, marginTop: 5, textAlign: 'center' }}>Enter pošalji · Shift+Enter novi red</div>
+          </div>
+        </>}
+
+        {/* CONNECTORS */}
+        {view === 'connectors' && <div style={{ flex: 1, overflowY: 'auto', padding: 28 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 22 }}>
+            <div>
+              <h1 style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>Connectors</h1>
+              <p style={{ color: MT, fontSize: 13 }}>Poveži AI provajdere, aplikacije i servise.</p>
+            </div>
+            {connectors.filter(c => c.active).length > 0 && <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: 'rgba(170,255,0,0.12)', color: L }}>{connectors.filter(c => c.active).length} aktivnih</span>}
+          </div>
+
+          {connectors.length > 0 && <>
+            <div style={{ fontSize: 10, color: MT, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 10 }}>Konfigurisano</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: 12, marginBottom: 24 }}>
+              {connectors.map(conn => {
+                const def = CONNECTOR_TYPES.find(c => c.type === conn.type);
+                return (
+                  <div key={conn.id} style={{ background: B2, border: `1px solid ${conn.active ? L : BR}`, borderRadius: 12, padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ width: 36, height: 36, borderRadius: 9, background: B3, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>{def?.icon}</div>
+                      <div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 700 }}>{def?.name}</div><div style={{ fontSize: 10, color: MT }}>{def?.cat}</div></div>
+                      <span style={{ padding: '2px 7px', borderRadius: 20, fontSize: 10, fontWeight: 700, background: conn.active ? 'rgba(170,255,0,0.12)' : B3, color: conn.active ? L : MT }}>{conn.active ? 'Aktivan' : 'Off'}</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button style={{ ...btn('ghost', true), flex: 1 }} onClick={() => toggleConnector(conn.id, conn.active)}>{conn.active ? 'Isključi' : 'Uključi'}</button>
+                      <button style={btn('danger', true)} onClick={() => removeConnector(conn.id)}>✕</button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <hr style={{ border: 'none', borderTop: `1px solid ${BR}`, margin: '0 0 22px' }} />
+          </>}
+
+          <div style={{ fontSize: 10, color: MT, letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 10 }}>Dostupni</div>
+          <div style={{ display: 'flex', gap: 2, background: B3, borderRadius: 8, padding: 3, marginBottom: 18, width: 'fit-content' }}>
+            {connCats.map(c => <div key={c} style={{ padding: '6px 12px', borderRadius: 6, fontSize: 11, cursor: 'pointer', color: connTab === c ? TX : MT, background: connTab === c ? B2 : 'transparent', fontWeight: connTab === c ? 600 : 400 }} onClick={() => setConnTab(c)}>{c}</div>)}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: 12 }}>
+            {filtConn.map(def => {
+              const connected = connectors.find(c => c.type === def.type);
+              return (
+                <div key={def.type} style={{ background: B2, border: `1px solid ${connected?.active ? L : BR}`, borderRadius: 12, padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 9, background: B3, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>{def.icon}</div>
+                    <div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 700 }}>{def.name}</div><div style={{ fontSize: 10, color: MT }}>{def.cat}</div></div>
+                    {connected && <span style={{ fontSize: 14, color: L }}>✓</span>}
+                  </div>
+                  <div style={{ fontSize: 12, color: MT, lineHeight: 1.5 }}>{def.desc}</div>
+                  <button style={btn('primary', true)} onClick={() => setModal({ type: 'connector', def })}>{connected ? 'Rekonfiguriši' : 'Konfiguriši'}</button>
+                </div>
+              );
+            })}
+          </div>
+        </div>}
+
+        {/* SKILLS */}
+        {view === 'skills' && <div style={{ flex: 1, overflowY: 'auto', padding: 28 }}>
+          <h1 style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>Clawhub Skills</h1>
+          <p style={{ color: MT, fontSize: 13, marginBottom: 20 }}>Dodaj sposobnosti svom AI asistentu.</p>
+          <input style={{ ...fi, maxWidth: 280, marginBottom: 20 }} placeholder="🔍  Pretraži skill-ove…" value={skillSrch} onChange={e => setSkillSrch(e.target.value)} />
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(230px,1fr))', gap: 12 }}>
+            {SKILLS.filter(s => !skillSrch || s.name.toLowerCase().includes(skillSrch.toLowerCase()) || s.desc.toLowerCase().includes(skillSrch.toLowerCase())).map(sk => {
+              const needsConn = sk.connector && !connectors.find(c => c.type === sk.connector && c.active);
+              return (
+                <div key={sk.id} style={{ background: B2, border: `1px solid ${BR}`, borderRadius: 12, padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 9, background: B3, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>{sk.icon}</div>
+                    <div style={{ flex: 1 }}><div style={{ fontSize: 13, fontWeight: 700 }}>{sk.name}</div><div style={{ fontSize: 10, color: MT }}>{sk.cat}</div></div>
+                    <span style={{ padding: '2px 7px', borderRadius: 20, fontSize: 10, fontWeight: 700, background: sk.free ? 'rgba(170,255,0,0.12)' : B3, color: sk.free ? L : MT }}>{sk.free ? 'FREE' : 'PRO'}</span>
+                  </div>
+                  <div style={{ fontSize: 12, color: MT, lineHeight: 1.5 }}>{sk.desc}</div>
+                  {needsConn && <div style={{ fontSize: 11, color: '#ff9900' }}>⚠ Treba {CONNECTOR_TYPES.find(c => c.type === sk.connector)?.name}</div>}
+                  <button style={btn('ghost', true)} onClick={() => needsConn ? setView('connectors') : null}>{needsConn ? 'Konfiguriši konektor' : 'Dodaj asistentu'}</button>
+                </div>
+              );
+            })}
+          </div>
+        </div>}
+
+        {/* MODELS */}
+        {view === 'models' && <div style={{ flex: 1, overflowY: 'auto', padding: 28 }}>
+          <h1 style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>AI Modeli</h1>
+          <p style={{ color: MT, fontSize: 13, marginBottom: 24 }}>Claude modeli rade ako je ANTHROPIC_API_KEY setovan na Railway. OpenRouter modeli zahtijevaju API ključ u Connectors.</p>
+          {(models.length > 0 ? models : [
+            { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', provider: 'anthropic', context: 200000 },
+            { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', provider: 'anthropic', context: 200000 },
+            { id: 'openrouter/mistralai/mistral-7b-instruct:free', name: 'Mistral 7B (Free)', provider: 'openrouter', context: 32768 },
+            { id: 'openrouter/meta-llama/llama-3-8b-instruct:free', name: 'Llama 3 8B (Free)', provider: 'openrouter', context: 8192 },
+            { id: 'openrouter/deepseek/deepseek-r1:free', name: 'DeepSeek R1 (Free)', provider: 'openrouter', context: 65536 },
+          ]).map(m => (
+            <div key={m.id} onClick={() => setSelModel(m.id)} style={{ background: selModel === m.id ? 'rgba(170,255,0,0.04)' : B2, border: `1px solid ${selModel === m.id ? L : BR}`, borderRadius: 12, padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer', marginBottom: 10 }}>
+              <div style={{ width: 18, height: 18, borderRadius: '50%', border: `2px solid ${selModel === m.id ? L : BR}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                {selModel === m.id && <div style={{ width: 8, height: 8, borderRadius: '50%', background: L }} />}
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 14, fontWeight: 700 }}>{m.name}</div>
+                <div style={{ fontSize: 11, color: MT, marginTop: 2 }}>{m.provider} · {Math.round(m.context / 1000)}k context</div>
+                <div style={{ fontSize: 10, fontFamily: 'monospace', color: MT, marginTop: 2 }}>{m.id}</div>
+              </div>
+              <span style={{ padding: '2px 7px', borderRadius: 20, fontSize: 10, fontWeight: 700, background: 'rgba(170,255,0,0.12)', color: L }}>BESPLATNO</span>
+              {selModel === m.id && <span style={{ fontSize: 12, color: L, fontWeight: 700 }}>✓</span>}
+            </div>
+          ))}
+        </div>}
+
+        {/* VPS */}
+        {view === 'vps' && <div style={{ flex: 1, overflowY: 'auto', padding: 28 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+            <div><h1 style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>VPS Instance</h1><p style={{ color: MT, fontSize: 13 }}>Cloud instance za AI workflow-ove 24/7.</p></div>
+            <button style={btn('primary')} onClick={() => setModal({ type: 'vps' })}>+ Nova instanca</button>
+          </div>
+          {vpsInst.length === 0 ? <div style={{ textAlign: 'center', padding: '50px 20px', color: MT }}><div style={{ fontSize: 36, marginBottom: 12 }}>☁️</div><div style={{ fontSize: 15, fontWeight: 700, color: TX, marginBottom: 6 }}>Nema instanci</div><p>Deploj VPS za 24/7 AI workflow-ove.</p></div>
+            : vpsInst.map(v => (
+              <div key={v.id} style={{ background: B2, border: `1px solid ${BR}`, borderRadius: 12, padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 14, marginBottom: 10 }}>
+                <div style={{ width: 10, height: 10, borderRadius: '50%', background: v.status === 'running' ? L : BR, boxShadow: v.status === 'running' ? `0 0 8px ${L}` : 'none', flexShrink: 0 }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700 }}>{v.name}</div>
+                  <div style={{ fontSize: 11, color: MT, marginTop: 2 }}>{v.provider} · <span style={{ color: v.status === 'running' ? L : MT }}>{v.status}</span></div>
+                </div>
+                <button style={btn('ghost', true)} onClick={() => toggleVPS(v.id, v.status)}>{v.status === 'running' ? 'Zaustavi' : 'Pokreni'}</button>
+                <button style={btn('danger', true)} onClick={() => deleteVPS(v.id)}>Obriši</button>
+              </div>
+            ))}
+        </div>}
+
+        {/* CRONS */}
+        {view === 'crons' && <div style={{ flex: 1, overflowY: 'auto', padding: 28 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+            <div><h1 style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>Cron Jobs</h1><p style={{ color: MT, fontSize: 13 }}>Zakaži AI zadaće da se automatski izvršavaju.</p></div>
+            <button style={btn('primary')} onClick={() => setModal({ type: 'cron' })}>+ Novi job</button>
+          </div>
+          {cronJobs.length === 0 ? <div style={{ textAlign: 'center', padding: '50px 20px', color: MT }}><div style={{ fontSize: 36, marginBottom: 12 }}>⏱</div><div style={{ fontSize: 15, fontWeight: 700, color: TX, marginBottom: 6 }}>Nema cron job-ova</div><p>Zakaži AI zadaće da se pokreću automatski.</p></div>
+            : cronJobs.map(job => (
+              <div key={job.id} style={{ background: B2, border: `1px solid ${BR}`, borderRadius: 12, padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 14, marginBottom: 10 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700 }}>{job.name}</div>
+                  <div style={{ fontSize: 11, fontFamily: 'monospace', color: L, margin: '3px 0' }}>{job.schedule}</div>
+                  <div style={{ fontSize: 11, color: MT, maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{job.prompt}</div>
+                  {job.last_run && <div style={{ fontSize: 10, color: MT, marginTop: 3 }}>Zadnje: {new Date(job.last_run).toLocaleString()}</div>}
+                </div>
+                <label style={{ position: 'relative', width: 36, height: 20, cursor: 'pointer', flexShrink: 0 }}>
+                  <input type="checkbox" style={{ opacity: 0, width: 0, height: 0, position: 'absolute' }} checked={!!job.active} onChange={() => toggleCron(job.id, job.active)} />
+                  <div style={{ position: 'absolute', inset: 0, background: job.active ? L : BR, borderRadius: 10, transition: '.2s' }} />
+                  <div style={{ position: 'absolute', top: 3, left: job.active ? 19 : 3, width: 14, height: 14, background: '#fff', borderRadius: '50%', transition: '.2s' }} />
+                </label>
+                <button style={btn('ghost', true)} onClick={() => runCron(job)}>▶ Pokreni</button>
+                <button style={btn('danger', true)} onClick={() => deleteCron(job.id)}>Obriši</button>
+              </div>
+            ))}
+        </div>}
+      </div>
+
+      {/* MODALS */}
+      {modal?.type === 'connector' && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }} onClick={e => e.target === e.currentTarget && setModal(null)}>
+          <div style={{ background: B2, border: `1px solid ${BR}`, borderRadius: 16, padding: 28, width: 420, maxHeight: '80vh', overflowY: 'auto' }}>
+            <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 6 }}>{modal.def.icon} {modal.def.name}</div>
+            <div style={{ fontSize: 12, color: MT, marginBottom: 20 }}>{modal.def.desc}</div>
+            <ConnForm def={modal.def} onSave={cfg => addConnector(modal.def.type, cfg)} onClose={() => setModal(null)} />
+          </div>
+        </div>
+      )}
+      {modal?.type === 'cron' && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }} onClick={e => e.target === e.currentTarget && setModal(null)}>
+          <div style={{ background: B2, border: `1px solid ${BR}`, borderRadius: 16, padding: 28, width: 420, maxHeight: '80vh', overflowY: 'auto' }}>
+            <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 20 }}>⏱ Novi Cron Job</div>
+            <CronForm onSave={addCron} onClose={() => setModal(null)} />
+          </div>
+        </div>
+      )}
+      {modal?.type === 'vps' && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }} onClick={e => e.target === e.currentTarget && setModal(null)}>
+          <div style={{ background: B2, border: `1px solid ${BR}`, borderRadius: 16, padding: 28, width: 380 }}>
+            <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 20 }}>☁ Nova VPS Instanca</div>
+            <VPSForm onSave={addVPS} onClose={() => setModal(null)} />
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes pulse { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(-5px)} }
+        ::-webkit-scrollbar{width:4px} ::-webkit-scrollbar-track{background:transparent} ::-webkit-scrollbar-thumb{background:${BR};border-radius:2px}
+        textarea{overflow-y:hidden}
+      `}</style>
+    </div>
+  );
+}
+
+// ─── Auth Screen ──────────────────────────────────────────────────────────────
+function AuthScreen({ onLogin }) {
+  const [mode, setMode] = useState('login');
+  const [email, setEmail] = useState('');
+  const [pass, setPass] = useState('');
+  const [err, setErr] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(e) {
+    e.preventDefault(); setErr(''); setLoading(true);
+    try {
+      const endpoint = mode === 'login' ? '/api/auth/login' : '/api/auth/register';
+      const res = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password: pass }) });
+      const data = await res.json();
+      if (data.error) { setErr(data.error); return; }
+      onLogin(data.user, data.token);
+    } catch { setErr('Greška pri konekciji sa serverom'); }
+    finally { setLoading(false); }
+  }
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: BG }}>
+      <div style={{ background: B2, border: `1px solid ${BR}`, borderRadius: 16, padding: 36, width: 340 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'center', marginBottom: 24 }}>
+          <div style={{ width: 32, height: 32, background: L, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 18, color: '#000' }}>+</div>
+          <span style={{ fontWeight: 800, fontSize: 16, letterSpacing: 1, color: TX }}>ATOMIC BOT</span>
+        </div>
+        <h2 style={{ fontSize: 20, fontWeight: 800, textAlign: 'center', marginBottom: 4, color: TX }}>{mode === 'login' ? 'Dobro došao' : 'Kreiraj nalog'}</h2>
+        <p style={{ color: MT, fontSize: 12, textAlign: 'center', marginBottom: 22 }}>{mode === 'login' ? 'Prijavi se u AI workspace' : 'Počni svoju AI avanturu'}</p>
+        <form onSubmit={handleSubmit}>
+          <div style={{ marginBottom: 12 }}><label style={fl}>EMAIL</label><input style={{ ...fi, fontSize: 13 }} type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="ti@primjer.com" required /></div>
+          <div style={{ marginBottom: 12 }}><label style={fl}>LOZINKA</label><input style={{ ...fi, fontSize: 13 }} type="password" value={pass} onChange={e => setPass(e.target.value)} placeholder="••••••••" required /></div>
+          {err && <p style={{ color: '#ff5555', fontSize: 12, marginBottom: 10 }}>{err}</p>}
+          <button type="submit" disabled={loading} style={{ width: '100%', padding: '11px', borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: loading ? 'wait' : 'pointer', border: 'none', background: L, color: '#000', fontFamily: 'inherit' }}>
+            {loading ? '...' : mode === 'login' ? 'Prijavi se' : 'Kreiraj nalog'}
+          </button>
+        </form>
+        <p style={{ textAlign: 'center', fontSize: 11, color: MT, marginTop: 14 }}>
+          {mode === 'login' ? 'Nemaš nalog? ' : 'Imaš nalog? '}
+          <span style={{ color: L, cursor: 'pointer' }} onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setErr(''); }}>
+            {mode === 'login' ? 'Registruj se' : 'Prijavi se'}
+          </span>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Connector Form ───────────────────────────────────────────────────────────
+function ConnForm({ def, onSave, onClose }) {
+  const [cfg, setCfg] = useState({});
+  return (
+    <form onSubmit={e => { e.preventDefault(); onSave(cfg); }}>
+      {def.fields.map(f => (
+        <div key={f} style={{ marginBottom: 14 }}>
+          <label style={fl}>{f.replace(/([A-Z])/g, ' $1').toUpperCase()}</label>
+          <input style={{ ...fi, fontSize: 13 }} type={['apiKey', 'token', 'secret', 'clientSecret'].includes(f) ? 'password' : 'text'} placeholder={`Unesi ${f}`} value={cfg[f] || ''} onChange={e => setCfg(p => ({ ...p, [f]: e.target.value }))} />
+        </div>
+      ))}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 20 }}>
+        <button type="button" style={btn('ghost')} onClick={onClose}>Otkaži</button>
+        <button type="submit" style={btn('primary')}>Sačuvaj</button>
+      </div>
+    </form>
+  );
+}
+
+// ─── Cron Form ────────────────────────────────────────────────────────────────
+function CronForm({ onSave, onClose }) {
+  const [f, setF] = useState({ name: '', schedule: '0 9 * * *', prompt: '', model: 'claude-haiku-4-5-20251001' });
+  const presets = [['Svaki sat', '0 * * * *'], ['Dnevno 9h', '0 9 * * *'], ['Ponedjeljkom', '0 9 * * 1'], ['Svako 30min', '*/30 * * * *']];
+  return (
+    <form onSubmit={e => { e.preventDefault(); if (!f.name || !f.schedule || !f.prompt) return; onSave(f); }}>
+      <div style={{ marginBottom: 14 }}><label style={fl}>IME JOBA</label><input style={{ ...fi, fontSize: 13 }} placeholder="Dnevni sažetak" value={f.name} onChange={e => setF(p => ({ ...p, name: e.target.value }))} required /></div>
+      <div style={{ marginBottom: 14 }}>
+        <label style={fl}>RASPORED (CRON)</label>
+        <input style={{ ...fi, fontSize: 13, fontFamily: 'monospace' }} value={f.schedule} onChange={e => setF(p => ({ ...p, schedule: e.target.value }))} required />
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+          {presets.map(([l, v]) => <span key={v} style={{ fontSize: 10, padding: '3px 8px', background: B3, borderRadius: 6, cursor: 'pointer', color: MT, border: `1px solid ${BR}` }} onClick={() => setF(p => ({ ...p, schedule: v }))}>{l}</span>)}
+        </div>
+      </div>
+      <div style={{ marginBottom: 14 }}><label style={fl}>AI PROMPT</label><textarea style={{ ...fi, resize: 'vertical', minHeight: 80, fontSize: 13 }} placeholder="Napiši dnevni sažetak vijesti o AI…" value={f.prompt} onChange={e => setF(p => ({ ...p, prompt: e.target.value }))} required /></div>
+      <div style={{ marginBottom: 14 }}>
+        <label style={fl}>MODEL</label>
+        <select style={{ ...fi, cursor: 'pointer', fontSize: 13 }} value={f.model} onChange={e => setF(p => ({ ...p, model: e.target.value }))}>
+          <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option>
+          <option value="claude-sonnet-4-20250514">Claude Sonnet 4</option>
+          <option value="openrouter/mistralai/mistral-7b-instruct:free">Mistral 7B (Free)</option>
+          <option value="openrouter/deepseek/deepseek-r1:free">DeepSeek R1 (Free)</option>
+        </select>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+        <button type="button" style={btn('ghost')} onClick={onClose}>Otkaži</button>
+        <button type="submit" style={btn('primary')}>Kreiraj Job</button>
+      </div>
+    </form>
+  );
+}
+
+// ─── VPS Form ─────────────────────────────────────────────────────────────────
+function VPSForm({ onSave, onClose }) {
+  const [f, setF] = useState({ name: '', provider: 'railway' });
+  return (
+    <form onSubmit={e => { e.preventDefault(); if (!f.name) return; onSave(f); }}>
+      <div style={{ marginBottom: 14 }}><label style={fl}>IME INSTANCE</label><input style={{ ...fi, fontSize: 13 }} placeholder="Moj AI Server" value={f.name} onChange={e => setF(p => ({ ...p, name: e.target.value }))} required /></div>
+      <div style={{ marginBottom: 14 }}>
+        <label style={fl}>PROVAJDER</label>
+        <select style={{ ...fi, cursor: 'pointer', fontSize: 13 }} value={f.provider} onChange={e => setF(p => ({ ...p, provider: e.target.value }))}>
+          <option value="railway">Railway</option>
+          <option value="render">Render</option>
+          <option value="fly">Fly.io</option>
+          <option value="digitalocean">DigitalOcean</option>
+          <option value="hetzner">Hetzner</option>
+        </select>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+        <button type="button" style={btn('ghost')} onClick={onClose}>Otkaži</button>
+        <button type="submit" style={btn('primary')}>Kreiraj</button>
+      </div>
+    </form>
+  );
+}
