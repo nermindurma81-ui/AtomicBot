@@ -5,11 +5,8 @@ const L = '#AAFF00', BG = '#0A0A0B', B2 = '#111113', B3 = '#1A1A1D',
   BR = '#2A2A2E', TX = '#E8E8EA', MT = '#6E6E78';
 
 const CONNECTOR_TYPES = [
-  { type: 'anthropic',       name: 'Anthropic',        cat: 'AI Models',    icon: '🧠', desc: 'Claude 3.5 Sonnet, Haiku — dodaj ključ za vlastiti billing', fields: ['apiKey'] },
   { type: 'openrouter',      name: 'OpenRouter',        cat: 'AI Providers', icon: '🔀', desc: 'Free OpenRouter modeli za produkciju',            fields: ['apiKey'] },
   { type: 'ollama',          name: 'Ollama Bridge',     cat: 'AI Providers', icon: '🦙', desc: 'Ollama stil model ID-eva preko OpenRouter free modela', fields: ['apiKey'] },
-  { type: 'mistral',         name: 'Mistral AI',        cat: 'AI Providers', icon: '💨', desc: 'Mistral jezički modeli',                                        fields: ['apiKey'] },
-  { type: 'openai',          name: 'OpenAI',            cat: 'AI Models',    icon: '🤖', desc: 'GPT-4o i GPT-4',                                               fields: ['apiKey'] },
   { type: 'telegram',        name: 'Telegram',          cat: 'Messengers',   icon: '✈️', desc: 'Telegram bot integracija',                                      fields: ['botToken', 'chatId'] },
   { type: 'discord',         name: 'Discord',           cat: 'Messengers',   icon: '🎮', desc: 'Discord bot integracija',                                       fields: ['botToken', 'channelId'] },
   { type: 'slack',           name: 'Slack',             cat: 'Messengers',   icon: '💬', desc: 'Slack workspace integracija',                                   fields: ['botToken', 'channelId'] },
