@@ -3,6 +3,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 // ─── constants ────────────────────────────────────────────────────────────────
 const L = '#AAFF00', BG = '#0A0A0B', B2 = '#111113', B3 = '#1A1A1D',
   BR = '#2A2A2E', TX = '#E8E8EA', MT = '#6E6E78';
+const API_BASE = (import.meta.env.VITE_API_BASE || '').trim().replace(/\/$/, '');
 const BLOCKED_MODEL_IDS = new Set(['openrouter/qwen/qwen-2-7b-instruct:free']);
 
 const CONNECTOR_TYPES = [
@@ -36,7 +37,7 @@ const SKILLS = [
 
 // ─── API helper ───────────────────────────────────────────────────────────────
 const api = {
-  base: (() => (import.meta.env.VITE_API_BASE || '').trim().replace(/\/$/, ''))(),
+  base: API_BASE,
   token: () => localStorage.getItem('ab_token'),
   headers: () => ({ 'Content-Type': 'application/json', 'Authorization': `Bearer ${api.token()}` }),
   url: (path) => (/^https?:\/\//i.test(path) ? path : `${api.base}${path}`),
@@ -630,7 +631,7 @@ export default function App() {
                     {connected && <span style={{ fontSize: 14, color: L }}>✓</span>}
                   </div>
                   <div style={{ fontSize: 12, color: MT, lineHeight: 1.5 }}>{def.desc}</div>
-                  <button style={btn('primary', true)} onClick={() => { setModalErr(''); setModal({ type: 'connector', def }); }}>{connected ? 'Rekonfiguriši' : 'Konfiguriši'}</button>
+                  <button style={btn('primary', true)} onClick={() => { setModalErr(''); setModal({ type: 'connector', def, existing: connected || null }); }}>{connected ? 'Rekonfiguriši' : 'Konfiguriši'}</button>
                 </div>
               );
             })}
@@ -784,7 +785,7 @@ export default function App() {
           <div style={{ background: B2, border: `1px solid ${BR}`, borderRadius: 16, padding: 28, width: 420, maxHeight: '80vh', overflowY: 'auto' }}>
             <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 6 }}>{modal.def.icon} {modal.def.name}</div>
             <div style={{ fontSize: 12, color: MT, marginBottom: 20 }}>{modal.def.desc}</div>
-            <ConnForm error={modalErr} def={modal.def} onSave={async (cfg) => {
+            <ConnForm error={modalErr} def={modal.def} initialConfig={modal.existing?.config || {}} onSave={async (cfg) => {
               try {
                 await addConnector(modal.def.type, cfg);
               } catch (err) {
@@ -832,7 +833,7 @@ function AuthScreen({ onLogin }) {
     e.preventDefault(); setErr(''); setLoading(true);
     try {
       const endpoint = mode === 'login' ? '/api/auth/login' : '/api/auth/register';
-      const res = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password: pass }) });
+      const res = await fetch(`${API_BASE}${endpoint}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password: pass }) });
       const data = await res.json();
       if (data.error) { setErr(data.error); return; }
       onLogin(data.user, data.token);
@@ -869,14 +870,30 @@ function AuthScreen({ onLogin }) {
 }
 
 // ─── Connector Form ───────────────────────────────────────────────────────────
-function ConnForm({ def, onSave, onClose, error }) {
-  const [cfg, setCfg] = useState({});
+function ConnForm({ def, onSave, onClose, error, initialConfig = {} }) {
+  const [cfg, setCfg] = useState(initialConfig);
+
+  useEffect(() => {
+    const draft = localStorage.getItem(`ab_connector_draft_${def.type}`);
+    if (draft) {
+      try { setCfg({ ...initialConfig, ...JSON.parse(draft) }); return; } catch { /* ignore */ }
+    }
+    setCfg(initialConfig);
+  }, [def.type, initialConfig]);
+
+  const updateCfg = (field, value) => {
+    setCfg((prev) => {
+      const next = { ...prev, [field]: value };
+      localStorage.setItem(`ab_connector_draft_${def.type}`, JSON.stringify(next));
+      return next;
+    });
+  };
   return (
-    <form onSubmit={e => { e.preventDefault(); onSave(cfg); }}>
+    <form onSubmit={e => { e.preventDefault(); localStorage.removeItem(`ab_connector_draft_${def.type}`); onSave(cfg); }}>
       {def.fields.map(f => (
         <div key={f} style={{ marginBottom: 14 }}>
           <label style={fl}>{f.replace(/([A-Z])/g, ' $1').toUpperCase()}</label>
-          <input style={{ ...fi, fontSize: 13 }} type={['apiKey', 'token', 'secret', 'clientSecret'].includes(f) ? 'password' : 'text'} placeholder={`Unesi ${f}`} value={cfg[f] || ''} onChange={e => setCfg(p => ({ ...p, [f]: e.target.value }))} />
+          <input style={{ ...fi, fontSize: 13 }} type={['apiKey', 'token', 'secret', 'clientSecret'].includes(f) ? 'password' : 'text'} placeholder={`Unesi ${f}`} value={cfg[f] || ''} onChange={e => updateCfg(f, e.target.value)} />
         </div>
       ))}
       {error && <div style={{ color: '#ff7777', fontSize: 12, marginBottom: 8 }}>⚠ {error}</div>}

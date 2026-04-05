@@ -15,37 +15,55 @@ export const ALL_FREE_MODELS = Object.values(FREE_MODELS).flat();
 const BLOCKED_MODELS = new Set([
   'openrouter/qwen/qwen-2-7b-instruct:free',
 ]);
+const DEFAULT_MODEL = 'openrouter/mistralai/mistral-7b-instruct:free';
 
 
 function normalizeModel(model) {
-  if (!model) return 'openrouter/mistralai/mistral-7b-instruct:free';
+  if (!model) return DEFAULT_MODEL;
   if (model.startsWith('ollama/')) {
     return `openrouter/${model.replace('ollama/', '')}`;
   }
-  if (!model.startsWith('openrouter/')) return 'openrouter/mistralai/mistral-7b-instruct:free';
-  if (BLOCKED_MODELS.has(model)) return 'openrouter/mistralai/mistral-7b-instruct:free';
+  if (!model.startsWith('openrouter/')) return DEFAULT_MODEL;
+  if (BLOCKED_MODELS.has(model)) return DEFAULT_MODEL;
   return model;
 }
 
 export async function callAI(model, messages, apiKeys = {}, stream = false) {
   const normalized = normalizeModel(model);
-  return callOpenRouter(normalized.replace('openrouter/', ''), messages, apiKeys.openrouter, stream);
+  try {
+    return await callOpenRouter(normalized.replace('openrouter/', ''), messages, apiKeys.openrouter, stream);
+  } catch (err) {
+    const shouldRetryDefault = normalized !== DEFAULT_MODEL && /no endpoints|404|model/i.test(err?.message || '');
+    if (!shouldRetryDefault) throw err;
+    return callOpenRouter(DEFAULT_MODEL.replace('openrouter/', ''), messages, apiKeys.openrouter, stream);
+  }
 }
 
 async function callOpenRouter(model, messages, apiKey, stream) {
   const key = apiKey || process.env.OPENROUTER_API_KEY;
   if (!key) throw new Error('No OpenRouter API key. Add it in Connectors or set OPENROUTER_API_KEY env var.');
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), stream ? 90000 : 45000);
 
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${key}`,
-      'HTTP-Referer': process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : 'http://localhost:3001',
-      'X-Title': 'AtomicBot',
-    },
-    body: JSON.stringify({ model, messages, stream, max_tokens: 4096 }),
-  });
+  let response;
+  try {
+    response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${key}`,
+        'HTTP-Referer': process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : 'http://localhost:3001',
+        'X-Title': 'AtomicBot',
+      },
+      body: JSON.stringify({ model, messages, stream, max_tokens: 2048 }),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (err?.name === 'AbortError') throw new Error('OpenRouter timeout: model nije odgovorio na vrijeme.');
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
 
   if (!response.ok) {
     const err = await response.text();
