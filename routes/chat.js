@@ -22,6 +22,9 @@ function resolveApiKeys(userId) {
 
 router.post('/stream', async (req, res) => {
   const { messages, model = 'openrouter/mistralai/mistral-7b-instruct:free', taskId } = req.body;
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return res.status(400).json({ error: 'messages array is required' });
+  }
   const db = getDB();
   const apiKeys = resolveApiKeys(req.user.id);
 
@@ -35,11 +38,16 @@ router.post('/stream', async (req, res) => {
     const streamRes = await callAI(model, messages, apiKeys, true);
     const body = streamRes.body;
     let fullContent = '';
+    let buffer = '';
 
-    for await (const chunk of body) {
-      const lines = chunk.toString().split('\n').filter((l) => l.trim());
+    for await (const chunk of body || []) {
+      buffer += chunk.toString();
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
       for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
+        const trimmed = line.trim();
+        if (!trimmed || !trimmed.startsWith('data: ')) continue;
         const data = line.slice(6);
         if (data === '[DONE]') {
           res.write('data: [DONE]\n\n');
@@ -55,6 +63,37 @@ router.post('/stream', async (req, res) => {
         } catch {
           // ignore non-json lines
         }
+      }
+    }
+
+    // Parse any final buffered SSE line
+    const finalLine = buffer.trim();
+    if (finalLine.startsWith('data: ')) {
+      const data = finalLine.slice(6);
+      if (data !== '[DONE]') {
+        try {
+          const parsed = JSON.parse(data);
+          const delta = parsed.choices?.[0]?.delta?.content || '';
+          if (delta) {
+            fullContent += delta;
+            res.write(`data: ${JSON.stringify({ delta })}\n\n`);
+          }
+        } catch {
+          // ignore parse failure
+        }
+      }
+    }
+
+    // Safety fallback: if no streamed deltas arrived, retry as non-stream completion
+    if (!fullContent) {
+      try {
+        const fallback = await callAI(model, messages, apiKeys, false);
+        if (fallback) {
+          fullContent = fallback;
+          res.write(`data: ${JSON.stringify({ delta: fallback })}\n\n`);
+        }
+      } catch {
+        // keep original stream behavior
       }
     }
 
