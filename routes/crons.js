@@ -7,6 +7,19 @@ import { callAI } from '../services/ai.js';
 const router = Router();
 const activeCrons = new Map();
 
+function resolveApiKeys(userId) {
+  const db = getDB();
+  const connectors = db.prepare('SELECT type, config FROM connectors WHERE user_id = ? AND active = 1').all(userId);
+  const apiKeys = {};
+  connectors.forEach((connector) => {
+    try {
+      const cfg = JSON.parse(connector.config || '{}');
+      if (connector.type === 'openrouter') apiKeys.openrouter = cfg.apiKey;
+    } catch {}
+  });
+  return apiKeys;
+}
+
 export function initCronJobs() {
   const db = getDB();
   const jobs = db.prepare('SELECT * FROM cron_jobs WHERE active = 1').all();
@@ -24,7 +37,7 @@ export function scheduleCronJob(job) {
     const db = getDB();
     console.log(`[Cron] Running: ${job.name}`);
     try {
-      const result = await callAI(job.model, [{ role: 'user', content: job.prompt }], {}, false);
+      const result = await callAI(job.model, [{ role: 'user', content: job.prompt }], resolveApiKeys(job.user_id), false);
       db.prepare('UPDATE cron_jobs SET last_run = CURRENT_TIMESTAMP WHERE id = ?').run(job.id);
       const taskId = uuidv4();
       db.prepare('INSERT INTO tasks (id, user_id, title, status) VALUES (?, ?, ?, ?)').run(taskId, job.user_id, `[Cron] ${job.name}`, 'completed');
@@ -44,7 +57,7 @@ router.get('/', (req, res) => {
 });
 
 router.post('/', (req, res) => {
-  const { name, schedule, prompt, model = 'claude-haiku-4-5-20251001' } = req.body;
+  const { name, schedule, prompt, model = 'openrouter/mistralai/mistral-7b-instruct:free' } = req.body;
   if (!name || !schedule || !prompt) return res.status(400).json({ error: 'name, schedule, prompt required' });
   if (!cron.validate(schedule)) return res.status(400).json({ error: 'Invalid cron schedule' });
 
@@ -90,7 +103,7 @@ router.post('/:id/run', async (req, res) => {
   const job = db.prepare('SELECT * FROM cron_jobs WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
   if (!job) return res.status(404).json({ error: 'Not found' });
   try {
-    const result = await callAI(job.model, [{ role: 'user', content: job.prompt }], {}, false);
+    const result = await callAI(job.model, [{ role: 'user', content: job.prompt }], resolveApiKeys(job.user_id), false);
     db.prepare('UPDATE cron_jobs SET last_run = CURRENT_TIMESTAMP WHERE id = ?').run(job.id);
     res.json({ result });
   } catch (err) {

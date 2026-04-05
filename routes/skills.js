@@ -1,8 +1,10 @@
 import { Router } from 'express';
+import { v4 as uuidv4 } from 'uuid';
+import { getDB } from '../db.js';
+import { SYSTEM_SKILL_PACKS, getSkillPackById } from '../services/skills-registry.js';
 
 const router = Router();
 
-// Built-in Clawhub skills
 export const CLAWHUB_SKILLS = [
   {
     id: 'web-search',
@@ -118,14 +120,71 @@ export const CLAWHUB_SKILLS = [
 router.get('/', (req, res) => {
   const { category, search } = req.query;
   let skills = CLAWHUB_SKILLS;
-  if (category) skills = skills.filter(s => s.category === category);
-  if (search) skills = skills.filter(s => s.name.toLowerCase().includes(search.toLowerCase()) || s.description.toLowerCase().includes(search.toLowerCase()));
+  if (category) skills = skills.filter((s) => s.category === category);
+  if (search) {
+    skills = skills.filter(
+      (s) => s.name.toLowerCase().includes(search.toLowerCase()) || s.description.toLowerCase().includes(search.toLowerCase())
+    );
+  }
   res.json(skills);
 });
 
 router.get('/categories', (req, res) => {
-  const cats = [...new Set(CLAWHUB_SKILLS.map(s => s.category))];
+  const cats = [...new Set(CLAWHUB_SKILLS.map((s) => s.category))];
   res.json(cats);
+});
+
+router.get('/packs', (req, res) => {
+  res.json(SYSTEM_SKILL_PACKS);
+});
+
+router.get('/installed', (req, res) => {
+  const db = getDB();
+  const installed = db
+    .prepare('SELECT id, pack_id, skill_id, active, created_at FROM installed_skills WHERE user_id = ? ORDER BY created_at DESC')
+    .all(req.user.id);
+  res.json(installed);
+});
+
+router.post('/install', (req, res) => {
+  const { packId } = req.body;
+  if (!packId) return res.status(400).json({ error: 'packId is required' });
+
+  const pack = getSkillPackById(packId);
+  if (!pack) return res.status(404).json({ error: 'Skill pack not found' });
+
+  const db = getDB();
+  const insert = db.prepare(`
+    INSERT INTO installed_skills (id, user_id, pack_id, skill_id, active)
+    VALUES (?, ?, ?, ?, 1)
+    ON CONFLICT(user_id, pack_id, skill_id)
+    DO UPDATE SET active = 1
+  `);
+
+  pack.capabilities.forEach((skillId) => {
+    insert.run(uuidv4(), req.user.id, pack.id, skillId);
+  });
+
+  const installed = db
+    .prepare('SELECT id, pack_id, skill_id, active, created_at FROM installed_skills WHERE user_id = ? ORDER BY created_at DESC')
+    .all(req.user.id);
+
+  res.json({
+    installedCount: pack.capabilities.length,
+    pack,
+    installed,
+  });
+});
+
+router.put('/installed/:id', (req, res) => {
+  const { active } = req.body;
+  const db = getDB();
+  const skill = db.prepare('SELECT id FROM installed_skills WHERE id = ? AND user_id = ?').get(req.params.id, req.user.id);
+  if (!skill) return res.status(404).json({ error: 'Installed skill not found' });
+
+  db.prepare('UPDATE installed_skills SET active = ? WHERE id = ?').run(active ? 1 : 0, req.params.id);
+  const updated = db.prepare('SELECT id, pack_id, skill_id, active, created_at FROM installed_skills WHERE id = ?').get(req.params.id);
+  res.json(updated);
 });
 
 export default router;
