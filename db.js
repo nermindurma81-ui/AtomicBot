@@ -83,6 +83,30 @@ export function initDB() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (user_id) REFERENCES users(id)
     );
+
+
+    CREATE TABLE IF NOT EXISTS installed_skills (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      pack_id TEXT NOT NULL,
+      skill_id TEXT NOT NULL,
+      active INTEGER DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      UNIQUE(user_id, pack_id, skill_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS agent_runs (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      model TEXT NOT NULL,
+      prompt TEXT NOT NULL,
+      plan TEXT,
+      result TEXT,
+      metadata TEXT DEFAULT '{}',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
   `);
 
   console.log('Database initialized');

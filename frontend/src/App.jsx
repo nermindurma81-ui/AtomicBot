@@ -86,7 +86,7 @@ export default function App() {
   const [cronJobs, setCronJobs] = useState([]);
   const [vpsInst, setVpsInst] = useState([]);
   const [models, setModels] = useState([]);
-  const [selModel, setSelModel] = useState('claude-haiku-4-5-20251001');
+  const [selModel, setSelModel] = useState('openrouter/mistralai/mistral-7b-instruct:free');
   const [inp, setInp] = useState('');
   const [streaming, setStreaming] = useState(false);
   const [modal, setModal] = useState(null);
@@ -326,8 +326,8 @@ export default function App() {
               <select style={{ background: B3, border: `1px solid ${BR}`, borderRadius: 7, padding: '5px 9px', color: TX, fontSize: 11, outline: 'none', cursor: 'pointer' }} value={selModel} onChange={e => setSelModel(e.target.value)}>
                 {models.length > 0 ? models.map(m => <option key={m.id} value={m.id}>{m.name}</option>) : (
                   <>
-                    <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option>
-                    <option value="claude-sonnet-4-20250514">Claude Sonnet 4</option>
+                    <option value="openrouter/mistralai/mistral-7b-instruct:free">Claude Haiku 4.5</option>
+                    <option value="openrouter/meta-llama/llama-3-8b-instruct:free">Claude Sonnet 4</option>
                     <option value="openrouter/mistralai/mistral-7b-instruct:free">Mistral 7B (Free)</option>
                     <option value="openrouter/meta-llama/llama-3-8b-instruct:free">Llama 3 8B (Free)</option>
                     <option value="openrouter/deepseek/deepseek-r1:free">DeepSeek R1 (Free)</option>
@@ -474,8 +474,8 @@ export default function App() {
           <h1 style={{ fontSize: 20, fontWeight: 800, marginBottom: 4 }}>AI Modeli</h1>
           <p style={{ color: MT, fontSize: 13, marginBottom: 24 }}>Claude modeli rade ako je ANTHROPIC_API_KEY setovan na Railway. OpenRouter modeli zahtijevaju API ključ u Connectors.</p>
           {(models.length > 0 ? models : [
-            { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', provider: 'anthropic', context: 200000 },
-            { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', provider: 'anthropic', context: 200000 },
+            { id: 'openrouter/meta-llama/llama-3-8b-instruct:free', name: 'Claude Sonnet 4', provider: 'anthropic', context: 200000 },
+            { id: 'openrouter/mistralai/mistral-7b-instruct:free', name: 'Claude Haiku 4.5', provider: 'anthropic', context: 200000 },
             { id: 'openrouter/mistralai/mistral-7b-instruct:free', name: 'Mistral 7B (Free)', provider: 'openrouter', context: 32768 },
             { id: 'openrouter/meta-llama/llama-3-8b-instruct:free', name: 'Llama 3 8B (Free)', provider: 'openrouter', context: 8192 },
             { id: 'openrouter/deepseek/deepseek-r1:free', name: 'DeepSeek R1 (Free)', provider: 'openrouter', context: 65536 },
@@ -647,7 +647,7 @@ function ConnForm({ def, onSave, onClose }) {
 
 // ─── Cron Form ────────────────────────────────────────────────────────────────
 function CronForm({ onSave, onClose }) {
-  const [f, setF] = useState({ name: '', schedule: '0 9 * * *', prompt: '', model: 'claude-haiku-4-5-20251001' });
+  const [f, setF] = useState({ name: '', schedule: '0 9 * * *', prompt: '', model: 'openrouter/mistralai/mistral-7b-instruct:free' });
   const presets = [['Svaki sat', '0 * * * *'], ['Dnevno 9h', '0 9 * * *'], ['Ponedjeljkom', '0 9 * * 1'], ['Svako 30min', '*/30 * * * *']];
   return (
     <form onSubmit={e => { e.preventDefault(); if (!f.name || !f.schedule || !f.prompt) return; onSave(f); }}>
@@ -663,8 +663,8 @@ function CronForm({ onSave, onClose }) {
       <div style={{ marginBottom: 14 }}>
         <label style={fl}>MODEL</label>
         <select style={{ ...fi, cursor: 'pointer', fontSize: 13 }} value={f.model} onChange={e => setF(p => ({ ...p, model: e.target.value }))}>
-          <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option>
-          <option value="claude-sonnet-4-20250514">Claude Sonnet 4</option>
+          <option value="openrouter/mistralai/mistral-7b-instruct:free">Claude Haiku 4.5</option>
+          <option value="openrouter/meta-llama/llama-3-8b-instruct:free">Claude Sonnet 4</option>
           <option value="openrouter/mistralai/mistral-7b-instruct:free">Mistral 7B (Free)</option>
           <option value="openrouter/deepseek/deepseek-r1:free">DeepSeek R1 (Free)</option>
         </select>
