@@ -141,6 +141,14 @@ async function main() {
 
     const vps = await request('/api/vps', {}, token);
     addResult('GET /api/vps', vps.ok, `status=${vps.status}`);
+
+    const deep = OPENROUTER_KEY ? '1' : '0';
+    const selfCheck = await request(`/api/self-check?deep=${deep}`, {}, token);
+    const selfCheckOk = selfCheck.ok && selfCheck.data?.healthy === true;
+    const selfCheckSummary = selfCheck.data?.summary
+      ? `pass=${selfCheck.data.summary.pass}, warn=${selfCheck.data.summary.warn}, fail=${selfCheck.data.summary.fail}`
+      : `status=${selfCheck.status}`;
+    addResult('GET /api/self-check', selfCheckOk, selfCheckSummary);
   } catch (err) {
     addResult('Checklist runtime', false, err?.message || String(err));
   } finally {

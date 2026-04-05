@@ -16,6 +16,7 @@ import cronRoutes from './routes/crons.js';
 import skillRoutes from './routes/skills.js';
 import vpsRoutes from './routes/vps.js';
 import agencyRoutes from './routes/agency.js';
+import selfCheckRoutes from './routes/self-check.js';
 import { initDB } from './db.js';
 import { authMiddleware } from './middleware/auth.js';
 import { setupWebSocket } from './websocket.js';
@@ -49,6 +50,7 @@ app.use('/api/crons', authMiddleware, cronRoutes);
 app.use('/api/skills', authMiddleware, skillRoutes);
 app.use('/api/vps', authMiddleware, vpsRoutes);
 app.use('/api/agency', authMiddleware, agencyRoutes);
+app.use('/api/self-check', authMiddleware, selfCheckRoutes);
 
 app.get('/health', (req, res) => res.json({ status: 'ok', version: '2.0.0' }));
 

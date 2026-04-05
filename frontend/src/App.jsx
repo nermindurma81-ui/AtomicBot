@@ -136,6 +136,8 @@ export default function App() {
   const [agencyPrompt, setAgencyPrompt] = useState('');
   const [agencyRun, setAgencyRun] = useState(null);
   const [agencyBusy, setAgencyBusy] = useState(false);
+  const [selfCheck, setSelfCheck] = useState(null);
+  const [selfCheckBusy, setSelfCheckBusy] = useState(false);
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 900 : false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const msgEnd = useRef(null);
@@ -365,15 +367,13 @@ export default function App() {
 
   async function toggleVPS(id, status) {
     const action = status === 'running' ? 'stop' : 'start';
-    const res = await fetch(`/api/vps/${id}/${action}`, { method: 'POST', headers: api.headers() });
-    const data = await res.json();
+    const data = await api.post(`/api/vps/${id}/${action}`, {});
     if (data.error) { alert(data.error); return; }
     setVpsInst(p => p.map(v => v.id === id ? { ...v, status: data.status } : v));
   }
 
   async function syncVPS(id) {
-    const res = await fetch(`/api/vps/${id}/sync`, { method: 'POST', headers: api.headers() });
-    const data = await res.json();
+    const data = await api.post(`/api/vps/${id}/sync`, {});
     if (data.error) { alert(data.error); return; }
     setVpsInst(p => p.map(v => v.id === id ? { ...v, status: data.status } : v));
   }
@@ -406,6 +406,16 @@ export default function App() {
       setAgencyRun({ error: err.message });
     }
     setAgencyBusy(false);
+  }
+
+  async function runSelfCheck(deep = false) {
+    setSelfCheckBusy(true);
+    try {
+      const data = await api.get(`/api/self-check?deep=${deep ? 1 : 0}`);
+      setSelfCheck(data?.error ? { healthy: false, error: data.error } : data);
+    } finally {
+      setSelfCheckBusy(false);
+    }
   }
 
   if (loading) return (
@@ -530,9 +540,29 @@ export default function App() {
             <textarea style={{ ...fi, minHeight: 110, resize: 'vertical' }} value={agencyPrompt} onChange={e => setAgencyPrompt(e.target.value)} placeholder="Npr. Napravi sedmični AI market report i akcioni plan za tim." />
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10, alignItems: 'center' }}>
               <div style={{ fontSize: 11, color: MT }}>Model: {selModel}</div>
-              <button style={btn('primary')} onClick={runAgency} disabled={agencyBusy}>{agencyBusy ? 'Running…' : 'Run Agency Task'}</button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button style={btn('ghost', true)} onClick={() => runSelfCheck(false)} disabled={selfCheckBusy}>{selfCheckBusy ? 'Checking…' : 'Self Check'}</button>
+                <button style={btn('ghost', true)} onClick={() => runSelfCheck(true)} disabled={selfCheckBusy}>{selfCheckBusy ? 'Checking…' : 'Self Check (Deep)'}</button>
+                <button style={btn('primary')} onClick={runAgency} disabled={agencyBusy}>{agencyBusy ? 'Running…' : 'Run Agency Task'}</button>
+              </div>
             </div>
           </div>
+
+          {selfCheck && <div style={{ background: B2, border: `1px solid ${BR}`, borderRadius: 12, padding: 16, marginTop: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <div style={{ fontSize: 12, color: MT }}>System Self Check</div>
+              {selfCheck.summary && <div style={{ fontSize: 11, color: selfCheck.healthy ? L : '#ff7777' }}>pass {selfCheck.summary.pass} · warn {selfCheck.summary.warn} · fail {selfCheck.summary.fail}</div>}
+            </div>
+            {selfCheck.error ? <div style={{ color: '#ff7777', fontSize: 12 }}>⚠ {selfCheck.error}</div> : (
+              <div style={{ display: 'grid', gap: 6 }}>
+                {(selfCheck.checks || []).map((c) => (
+                  <div key={c.name} style={{ fontSize: 12, color: c.status === 'fail' ? '#ff7777' : c.status === 'warn' ? '#ffcc66' : TX }}>
+                    <strong>{c.status.toUpperCase()}</strong> · {c.name} — {c.message}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>}
 
           {agencyRun && <div style={{ background: B2, border: `1px solid ${BR}`, borderRadius: 12, padding: 16, marginTop: 16 }}>
             {agencyRun.error ? <div style={{ color: '#ff7777', fontSize: 12 }}>⚠ {agencyRun.error}</div> : <>

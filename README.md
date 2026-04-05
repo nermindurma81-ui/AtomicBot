@@ -31,6 +31,7 @@ Skill pack izvori:
 - `GET /api/skills/installed` — aktivni skillovi
 - `POST /api/agency/run` — pokreni multi-agent izvršavanje zadatka
 - `GET /api/agency/runs` — historija agent run-ova
+- `GET /api/self-check?deep=0|1` — sistemska provjera (DB/schema/connectors/OpenRouter; `deep=1` pokreće i AI roundtrip test)
 
 ## Deploy za 5 minuta
 
@@ -102,6 +103,8 @@ Opcionalno (auto postavi/refresh OpenRouter konektor prije chat/agency testa):
 ```bash
 OPENROUTER_KEY=sk-or-... node scripts/railway-checklist.mjs
 ```
+
+Skripta sada uključuje i `GET /api/self-check` i prijavljuje `pass/warn/fail` summary.
 
 ## Railway build napomena (better-sqlite3)
 
