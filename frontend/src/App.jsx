@@ -42,7 +42,7 @@ const api = {
   headers: () => {
     const token = api.token();
     return token
-      ? { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
+      ? { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
       : { 'Content-Type': 'application/json' };
   },
   url: (path) => (/^https?:\/\//i.test(path) ? path : `${api.base}${path}`),
@@ -136,8 +136,6 @@ export default function App() {
   const [agencyPrompt, setAgencyPrompt] = useState('');
   const [agencyRun, setAgencyRun] = useState(null);
   const [agencyBusy, setAgencyBusy] = useState(false);
-  const [selfCheck, setSelfCheck] = useState(null);
-  const [selfCheckBusy, setSelfCheckBusy] = useState(false);
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 900 : false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const msgEnd = useRef(null);
@@ -223,19 +221,19 @@ export default function App() {
       });
 
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      if (!res.body) throw new Error('Stream nije dostupan (prazan odgovor servera).');
+      if (!res.body) throw new Error('SSE stream nije dostupan (res.body is null)');
       const reader = res.body.getReader();
       const dec = new TextDecoder();
       let full = '';
       let sseBuffer = '';
 
-      const consumeSseChunk = (chunkText) => {
-        sseBuffer += chunkText;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        sseBuffer += dec.decode(value, { stream: true });
         const lines = sseBuffer.split('\n');
         sseBuffer = lines.pop() || '';
-
-        for (const rawLine of lines) {
-          const line = rawLine.trim();
+        for (const line of lines) {
           if (!line.startsWith('data: ')) continue;
           const d = line.slice(6);
           if (d === '[DONE]') continue;
@@ -251,32 +249,28 @@ export default function App() {
             if (e.message && !e.message.includes('JSON')) throw e;
           }
         }
-      };
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        consumeSseChunk(dec.decode(value, { stream: true }));
       }
-
-      consumeSseChunk(dec.decode());
-
-      const finalLine = sseBuffer.trim();
-      if (finalLine.startsWith('data: ') && finalLine.slice(6) !== '[DONE]') {
-        try {
-          const parsed = JSON.parse(finalLine.slice(6));
-          const delta = parsed.delta || '';
-          if (delta) {
-            full += delta;
-            setActiveTask(p => ({ ...p, messages: p.messages.map(m => m.id === aiMsgId ? { ...m, content: full } : m) }));
+      sseBuffer += dec.decode();
+      const trailing = sseBuffer.trim();
+      if (trailing.startsWith('data: ')) {
+        const d = trailing.slice(6);
+        if (d !== '[DONE]') {
+          try {
+            const parsed = JSON.parse(d);
+            if (parsed.error) throw new Error(parsed.error);
+            const delta = parsed.delta || '';
+            if (delta) {
+              full += delta;
+              setActiveTask(p => ({ ...p, messages: p.messages.map(m => m.id === aiMsgId ? { ...m, content: full } : m) }));
+            }
+          } catch (e) {
+            if (e.message && !e.message.includes('JSON')) throw e;
           }
-        } catch {
-          // ignore trailing partial line parse failures
         }
       }
 
       if (!full.trim()) {
-        throw new Error('Model nije vratio sadržaj. Provjeri model/ključ i pokušaj ponovo.');
+        throw new Error('Model nije vratio sadržaj. Provjeri API ključ i odabrani model.');
       }
 
       // Replace temp msg with real id
@@ -284,7 +278,7 @@ export default function App() {
       setTasks(p => p.map(t => t.id === tid ? { ...t, updated_at: new Date().toISOString() } : t));
 
     } catch (err) {
-      setActiveTask(p => ({ ...p, messages: (p?.messages || []).map(m => m.id === aiMsgId ? { ...m, content: `⚠️ Greška: ${err.message}` } : m) }));
+      setActiveTask(p => ({ ...p, messages: p.messages.map(m => m.id === aiMsgId ? { ...m, content: `⚠️ Greška: ${err.message}` } : m) }));
     }
 
     setStreaming(false);
@@ -406,16 +400,6 @@ export default function App() {
       setAgencyRun({ error: err.message });
     }
     setAgencyBusy(false);
-  }
-
-  async function runSelfCheck(deep = false) {
-    setSelfCheckBusy(true);
-    try {
-      const data = await api.get(`/api/self-check?deep=${deep ? 1 : 0}`);
-      setSelfCheck(data?.error ? { healthy: false, error: data.error } : data);
-    } finally {
-      setSelfCheckBusy(false);
-    }
   }
 
   if (loading) return (
@@ -540,29 +524,9 @@ export default function App() {
             <textarea style={{ ...fi, minHeight: 110, resize: 'vertical' }} value={agencyPrompt} onChange={e => setAgencyPrompt(e.target.value)} placeholder="Npr. Napravi sedmični AI market report i akcioni plan za tim." />
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10, alignItems: 'center' }}>
               <div style={{ fontSize: 11, color: MT }}>Model: {selModel}</div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button style={btn('ghost', true)} onClick={() => runSelfCheck(false)} disabled={selfCheckBusy}>{selfCheckBusy ? 'Checking…' : 'Self Check'}</button>
-                <button style={btn('ghost', true)} onClick={() => runSelfCheck(true)} disabled={selfCheckBusy}>{selfCheckBusy ? 'Checking…' : 'Self Check (Deep)'}</button>
-                <button style={btn('primary')} onClick={runAgency} disabled={agencyBusy}>{agencyBusy ? 'Running…' : 'Run Agency Task'}</button>
-              </div>
+              <button style={btn('primary')} onClick={runAgency} disabled={agencyBusy}>{agencyBusy ? 'Running…' : 'Run Agency Task'}</button>
             </div>
           </div>
-
-          {selfCheck && <div style={{ background: B2, border: `1px solid ${BR}`, borderRadius: 12, padding: 16, marginTop: 16 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-              <div style={{ fontSize: 12, color: MT }}>System Self Check</div>
-              {selfCheck.summary && <div style={{ fontSize: 11, color: selfCheck.healthy ? L : '#ff7777' }}>pass {selfCheck.summary.pass} · warn {selfCheck.summary.warn} · fail {selfCheck.summary.fail}</div>}
-            </div>
-            {selfCheck.error ? <div style={{ color: '#ff7777', fontSize: 12 }}>⚠ {selfCheck.error}</div> : (
-              <div style={{ display: 'grid', gap: 6 }}>
-                {(selfCheck.checks || []).map((c) => (
-                  <div key={c.name} style={{ fontSize: 12, color: c.status === 'fail' ? '#ff7777' : c.status === 'warn' ? '#ffcc66' : TX }}>
-                    <strong>{c.status.toUpperCase()}</strong> · {c.name} — {c.message}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>}
 
           {agencyRun && <div style={{ background: B2, border: `1px solid ${BR}`, borderRadius: 12, padding: 16, marginTop: 16 }}>
             {agencyRun.error ? <div style={{ color: '#ff7777', fontSize: 12 }}>⚠ {agencyRun.error}</div> : <>

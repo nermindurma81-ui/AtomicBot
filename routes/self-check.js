@@ -4,127 +4,90 @@ import { callAI } from '../services/ai.js';
 
 const router = Router();
 
-const REQUIRED_TABLES = [
-  'users',
-  'tasks',
-  'connectors',
-  'cron_jobs',
-  'messages',
-  'vps_instances',
-  'installed_skills',
-  'agent_runs',
-];
+function mask(v) {
+  if (!v) return null;
+  const s = String(v);
+  if (s.length <= 8) return '*'.repeat(s.length);
+  return `${s.slice(0, 4)}...${s.slice(-4)}`;
+}
 
 function resolveOpenRouterKey(userId) {
   const db = getDB();
-  const connectors = db.prepare('SELECT type, config FROM connectors WHERE user_id = ? AND active = 1').all(userId);
+  const connectors = db.prepare('SELECT type, config, active FROM connectors WHERE user_id = ?').all(userId);
   for (const c of connectors) {
+    if (!c.active) continue;
     if (c.type !== 'openrouter' && c.type !== 'ollama') continue;
     try {
       const cfg = JSON.parse(c.config || '{}');
-      if (cfg.apiKey) return cfg.apiKey.trim();
+      if (cfg.apiKey) return cfg.apiKey;
     } catch {
-      // ignore malformed connector config
+      // ignore malformed config
     }
   }
-  return (process.env.OPENROUTER_API_KEY || '').trim();
-}
-
-async function checkOpenRouterModels(apiKey) {
-  if (!apiKey) {
-    return { name: 'openrouter_models', status: 'warn', message: 'No OpenRouter key configured.' };
-  }
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 8000);
-  try {
-    const res = await fetch('https://openrouter.ai/api/v1/models', {
-      headers: { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' },
-      signal: controller.signal,
-    });
-    if (!res.ok) {
-      return { name: 'openrouter_models', status: 'fail', message: `OpenRouter HTTP ${res.status}` };
-    }
-    const data = await res.json();
-    const modelsCount = Array.isArray(data?.data) ? data.data.length : 0;
-    return { name: 'openrouter_models', status: modelsCount > 0 ? 'pass' : 'fail', message: `Models visible: ${modelsCount}` };
-  } catch (err) {
-    return { name: 'openrouter_models', status: 'fail', message: `OpenRouter error: ${err.message}` };
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-async function checkAiRoundtrip(apiKey) {
-  if (!apiKey) {
-    return { name: 'ai_roundtrip', status: 'warn', message: 'Skipped: no OpenRouter key.' };
-  }
-  try {
-    const result = await callAI(
-      'openrouter/mistralai/mistral-7b-instruct:free',
-      [{ role: 'user', content: 'Reply with: OK' }],
-      { openrouter: apiKey },
-      false
-    );
-    const ok = typeof result === 'string' && result.trim().length > 0;
-    return { name: 'ai_roundtrip', status: ok ? 'pass' : 'fail', message: ok ? 'AI response received.' : 'Empty AI response.' };
-  } catch (err) {
-    return { name: 'ai_roundtrip', status: 'fail', message: err.message };
-  }
+  return process.env.OPENROUTER_API_KEY || null;
 }
 
 router.get('/', async (req, res) => {
   const db = getDB();
+  const deep = String(req.query.deep || '0') === '1';
   const checks = [];
 
   try {
     db.prepare('SELECT 1').get();
-    checks.push({ name: 'db_connection', status: 'pass', message: 'SQLite reachable.' });
+    checks.push({ name: 'db_connection', status: 'pass' });
   } catch (err) {
-    checks.push({ name: 'db_connection', status: 'fail', message: err.message });
+    checks.push({ name: 'db_connection', status: 'fail', detail: err.message });
   }
 
+  const requiredTables = ['users', 'tasks', 'messages', 'connectors', 'cron_jobs', 'vps_instances', 'installed_skills', 'agent_runs'];
   try {
-    const existing = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map((r) => r.name);
-    const missing = REQUIRED_TABLES.filter((t) => !existing.includes(t));
-    checks.push({
-      name: 'db_schema',
-      status: missing.length === 0 ? 'pass' : 'fail',
-      message: missing.length === 0 ? 'Required tables present.' : `Missing tables: ${missing.join(', ')}`,
-    });
+    const rows = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all();
+    const tables = new Set(rows.map((r) => r.name));
+    const missing = requiredTables.filter((t) => !tables.has(t));
+    checks.push({ name: 'db_schema', status: missing.length ? 'fail' : 'pass', detail: missing.length ? `Missing tables: ${missing.join(', ')}` : undefined });
   } catch (err) {
-    checks.push({ name: 'db_schema', status: 'fail', message: err.message });
+    checks.push({ name: 'db_schema', status: 'fail', detail: err.message });
   }
 
-  try {
-    const connectors = db.prepare('SELECT type, active FROM connectors WHERE user_id = ?').all(req.user.id);
-    const activeAi = connectors.filter((c) => c.active === 1 && (c.type === 'openrouter' || c.type === 'ollama')).length;
-    checks.push({
-      name: 'connector_state',
-      status: activeAi > 0 ? 'pass' : 'warn',
-      message: activeAi > 0 ? `Active AI connectors: ${activeAi}` : 'No active OpenRouter/Ollama connector.',
-    });
-  } catch (err) {
-    checks.push({ name: 'connector_state', status: 'fail', message: err.message });
+  const key = resolveOpenRouterKey(req.user.id);
+  checks.push({
+    name: 'openrouter_key',
+    status: key ? 'pass' : 'warn',
+    detail: key ? `resolved (${mask(key)})` : 'No active OpenRouter/Ollama connector and no OPENROUTER_API_KEY env',
+  });
+
+  if (key) {
+    try {
+      const r = await fetch('https://openrouter.ai/api/v1/models', { headers: { Authorization: `Bearer ${key}` } });
+      checks.push({ name: 'openrouter_models_api', status: r.ok ? 'pass' : 'warn', detail: `HTTP ${r.status}` });
+    } catch (err) {
+      checks.push({ name: 'openrouter_models_api', status: 'warn', detail: err.message });
+    }
   }
 
-  const apiKey = resolveOpenRouterKey(req.user.id);
-  checks.push(await checkOpenRouterModels(apiKey));
-
-  if (String(req.query.deep || '0') === '1') {
-    checks.push(await checkAiRoundtrip(apiKey));
-  } else {
-    checks.push({ name: 'ai_roundtrip', status: 'warn', message: 'Skipped (set ?deep=1).' });
+  if (deep) {
+    if (!key) {
+      checks.push({ name: 'chat_roundtrip', status: 'warn', detail: 'Skipped (missing OpenRouter key)' });
+    } else {
+      try {
+        const content = await callAI('openrouter/mistralai/mistral-7b-instruct:free', [{ role: 'user', content: 'Reply with OK' }], { openrouter: key }, false);
+        const ok = typeof content === 'string' && content.trim().length > 0;
+        checks.push({ name: 'chat_roundtrip', status: ok ? 'pass' : 'fail', detail: ok ? undefined : 'Empty model response' });
+      } catch (err) {
+        checks.push({ name: 'chat_roundtrip', status: 'fail', detail: err.message });
+      }
+    }
   }
 
-  const failCount = checks.filter((c) => c.status === 'fail').length;
-  const warnCount = checks.filter((c) => c.status === 'warn').length;
-  const passCount = checks.filter((c) => c.status === 'pass').length;
-  const healthy = failCount === 0;
+  const counts = checks.reduce((acc, c) => {
+    acc[c.status] = (acc[c.status] || 0) + 1;
+    return acc;
+  }, { pass: 0, warn: 0, fail: 0 });
 
-  res.status(healthy ? 200 : 503).json({
-    healthy,
-    summary: { pass: passCount, warn: warnCount, fail: failCount },
+  res.json({
+    healthy: counts.fail === 0,
+    mode: deep ? 'deep' : 'basic',
+    summary: counts,
     checks,
     timestamp: new Date().toISOString(),
   });

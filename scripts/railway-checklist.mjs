@@ -113,10 +113,8 @@ async function main() {
       }),
     }, token);
     const keyMissing = /api key/i.test(String(chat.data?.error || ''));
-    const chatText = typeof chat.data?.reply === 'string'
-      ? chat.data.reply
-      : (typeof chat.data?.content === 'string' ? chat.data.content : '');
-    const chatOk = (chat.ok && chatText.length > 0) || (chat.status === 500 && keyMissing);
+    const chatText = typeof chat.data?.reply === 'string' ? chat.data.reply : chat.data?.content;
+    const chatOk = (chat.ok && typeof chatText === 'string' && chatText.length > 0) || (chat.status === 500 && keyMissing);
     addResult('POST /api/chat/complete', chatOk, `status=${chat.status}${chat.data?.error ? `, err=${chat.data.error}` : ''}`);
 
     const packs = await request('/api/skills/packs', {}, token);
@@ -142,13 +140,9 @@ async function main() {
     const vps = await request('/api/vps', {}, token);
     addResult('GET /api/vps', vps.ok, `status=${vps.status}`);
 
-    const deep = OPENROUTER_KEY ? '1' : '0';
-    const selfCheck = await request(`/api/self-check?deep=${deep}`, {}, token);
-    const selfCheckOk = selfCheck.ok && selfCheck.data?.healthy === true;
-    const selfCheckSummary = selfCheck.data?.summary
-      ? `pass=${selfCheck.data.summary.pass}, warn=${selfCheck.data.summary.warn}, fail=${selfCheck.data.summary.fail}`
-      : `status=${selfCheck.status}`;
-    addResult('GET /api/self-check', selfCheckOk, selfCheckSummary);
+    const selfCheck = await request('/api/self-check', {}, token);
+    const healthy = Boolean(selfCheck.data?.healthy);
+    addResult('GET /api/self-check', selfCheck.ok && healthy, `status=${selfCheck.status}, healthy=${healthy}`);
   } catch (err) {
     addResult('Checklist runtime', false, err?.message || String(err));
   } finally {

@@ -1,81 +1,44 @@
-# 🦞 AtomicBot — Railway Deploy (OpenRouter Free Stack)
+# 🦞 Atomic Bot
 
-AtomicBot je full-stack AI workspace spreman za Railway deploy, optimiziran za **OpenRouter free modele** i multi-agent izvršavanje zadataka bez dodatnih servisa.
+Atomic Bot je full-stack AI assistant platforma optimizovana za **OpenRouter free modele** i Railway deploy.
 
-## Glavne funkcije
+## Deploy na Railway
 
-- ✅ Auth (register/login/JWT)
-- ✅ AI chat streaming preko OpenRouter API
-- ✅ Task management (SQLite)
-- ✅ Connectors (per-user ključevi)
-- ✅ Clawhub skill katalog + instalacija skill packova
-- ✅ AutoClaw-style execution flow (plan → alati → izvršenje)
-- ✅ Agency Agents-style multi-agent runtime
-- ✅ Cron jobs
-- ✅ VPS instance manager
-- ✅ WebSocket podrška
-
-## Integracije implementirane u projektu
-
-- **AutoClaw inspired runtime**: `autoclaw-core` pack + tool-calling ponašanje kroz agency runtime.
-- **Agency Agents inspired runtime**: planner/researcher/executor tok kroz `/api/agency/run`.
-
-Skill pack izvori:
-- `https://github.com/tsingliuwin/autoclaw`
-- `https://github.com/msitarzewski/agency-agents`
-
-## API pregled
-
-- `GET /api/skills/packs` — dostupni packovi
-- `POST /api/skills/install` — instaliraj pack za korisnika
-- `GET /api/skills/installed` — aktivni skillovi
-- `POST /api/agency/run` — pokreni multi-agent izvršavanje zadatka
-- `GET /api/agency/runs` — historija agent run-ova
-- `GET /api/self-check?deep=0|1` — sistemska provjera (DB/schema/connectors/OpenRouter; `deep=1` pokreće i AI roundtrip test)
-
-## Deploy za 5 minuta
-
-### 1) GitHub repozitorij
-
+### 1) GitHub repo
 ```bash
 git init
 git add .
-git commit -m "AtomicBot v2.1"
-git remote add origin https://github.com/<username>/<repo>.git
+git commit -m "Initial commit"
+git remote add origin https://github.com/YOUR_USERNAME/atomicbot.git
 git push -u origin main
 ```
 
-### 2) Railway
-
-1. Idi na **railway.app** → New Project → Deploy from GitHub repo
+### 2) Railway projekt
+1. Idi na [railway.app](https://railway.app) → **New Project** → **Deploy from GitHub**
 2. Odaberi repozitorij
-3. Railway automatski koristi `railway.toml`
+3. Railway koristi `railway.toml` i `nixpacks.toml` iz repoa
 
-### 3) Environment varijable
+### 3) Environment varijable (Railway)
+U Railway dashboardu → **Variables**:
 
-| Varijabla | Obavezno | Opis |
+| Varijabla | Vrijednost | Obavezno |
 |---|---|---|
-| `JWT_SECRET` | da | tajni string za JWT |
-| `OPENROUTER_API_KEY` | da | OpenRouter ključ za free modele |
-| `FRONTEND_URL` | ne | CORS origin |
-| `DB_PATH` | ne | putanja do SQLite baze |
-| `SINGLE_USER_MODE` | ne | `true` za jedan admin korisnik bez limita |
-| `OWNER_EMAIL` | ne | dozvoljeni email za registraciju u single-user modu |
-| `OWNER_PASSWORD` | ne | početna admin lozinka (preporučeno u produkciji) |
-| `VITE_API_BASE` | ne | puna API baza ako frontend i API nisu na istoj domeni (npr. `https://api.example.com`) |
+| `JWT_SECRET` | random string (min 32 chars) | ✅ |
+| `NODE_ENV` | `production` | ✅ |
+| `OPENROUTER_API_KEY` | OpenRouter API key (fallback) | ❌ |
+| `FRONTEND_URL` | npr. `https://your-app.up.railway.app` | ❌ |
+| `VITE_API_BASE` | ostavi prazno ako su frontend+API isti domen; inače puni API URL | ❌ |
+| `DB_PATH` | `/data/atomicbot.db` (uz Railway Volume) | ✅ |
+| `OWNER_EMAIL` | admin email za seed | preporučeno |
+| `OWNER_PASSWORD` | admin password za seed | preporučeno |
+| `SINGLE_USER_MODE` | `true`/`false` | ❌ |
 
-Za trenutni Railway deploy koristi:
-- `FRONTEND_URL=https://atomicbot-production-1e32.up.railway.app`
-- `VITE_API_BASE=https://atomicbot-production-1e32.up.railway.app`
+> Napomena: Ako frontend i backend rade na istom Railway domenu, `VITE_API_BASE` može ostati prazan jer frontend koristi relativne `/api/*` rute.
 
-## Default admin
-
-Admin korisnik se seed-a na startupu koristeći env varijable:
-
-- `OWNER_EMAIL` (default: `owner@example.com`)
-- `OWNER_PASSWORD` (obavezno postaviti u produkciji)
-
-Ako `OWNER_PASSWORD` nije postavljen, aplikacija generiše privremenu lozinku i ispisuje je u server log.
+### 4) Railway Volume za SQLite
+1. Add Service → **Volume**
+2. Mount path: `/data`
+3. Set `DB_PATH=/data/atomicbot.db`
 
 ## Lokalni razvoj
 
@@ -84,45 +47,50 @@ npm install
 npm run dev
 ```
 
-Frontend: `http://localhost:5173`  
-Backend: `http://localhost:3001`
+- Frontend: `http://localhost:5173`
+- Backend: `http://localhost:3001`
 
-## Railway checklist script (prod smoke test)
+## Besplatni AI modeli
 
-Za brzu provjeru ključnih API tokova na Railway:
+Aplikacija koristi **OpenRouter free** modele kroz backend normalizaciju (`openrouter/*`).
+Podržani default free modeli uključuju:
+- `openrouter/mistralai/mistral-7b-instruct:free`
+- `openrouter/meta-llama/llama-3-8b-instruct:free`
+- `openrouter/google/gemma-2-9b-it:free`
+- `openrouter/deepseek/deepseek-r1:free`
+- `openrouter/microsoft/phi-3-mini-128k-instruct:free`
+
+`ollama/*` ID-jevi su podržani kao bridge alias i mapiraju se na OpenRouter modele.
+
+## Ključne funkcije
+
+- 💬 Real-time chat sa SSE streaming odgovorima
+- 🔌 Connectors (OpenRouter/Ollama + ostali integracijski konektori)
+- 🌟 Skills packovi + instalacija skillova po korisniku
+- 🧠 Agency runtime (`/api/agency/run`)
+- ⏰ Cron jobs
+- ☁️ VPS webhook start/stop/sync
+- 🩺 Self-check endpoint (`GET /api/self-check?deep=0|1`)
+
+## Production checklist skripta
+
+Za brzu provjeru deploya:
 
 ```bash
-BASE_URL=https://atomicbot-production-1e32.up.railway.app \
+BASE_URL=https://your-app.up.railway.app \
 LOGIN_EMAIL=you@example.com \
 LOGIN_PASSWORD=your-password \
 node scripts/railway-checklist.mjs
 ```
 
-Opcionalno (auto postavi/refresh OpenRouter konektor prije chat/agency testa):
+Opcionalno (automatski kreira/ažurira OpenRouter connector):
 
 ```bash
 OPENROUTER_KEY=sk-or-... node scripts/railway-checklist.mjs
 ```
 
-Skripta sada uključuje i `GET /api/self-check` i prijavljuje `pass/warn/fail` summary.
+## Node verzija
 
-## Railway build napomena (better-sqlite3)
-
-Ako build puca na `better-sqlite3` (`node-gyp`, Python, `No prebuilt binaries`), koristi Node 20 runtime.
-
-- `railway.toml` već pin-a Nixpacks na `NIXPACKS_NODE_VERSION=20`.
-- `package.json` engine je ograničen na `>=20 <22`.
-
-## Napomena
-
-Projekt koristi isključivo OpenRouter kompatibilne modele na backendu. Ako model nije `openrouter/*`, backend ga automatski prebacuje na free fallback model.
-
-
-## Ollama kompatibilnost
-
-Ako koristiš `ollama/*` model ID, backend ga automatski mapira na OpenRouter free model (`openrouter/*`).
-
-
-## Claude Opus Max Skill
-
-`Claude Opus Max Skill` i `Codex Engineer Skill` su dostupni kroz skill packove za owner account.
+`better-sqlite3` je pinovan za Node 20 setup:
+- `NIXPACKS_NODE_VERSION=20` u `railway.toml`
+- `engines.node` u `package.json` je `>=20 <22`
