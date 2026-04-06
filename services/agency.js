@@ -1,7 +1,7 @@
 import fetch from 'node-fetch';
 import { callAI } from './ai.js';
 
-const DEFAULT_MODEL = 'openrouter/mistralai/mistral-7b-instruct:free';
+const DEFAULT_MODEL = 'openrouter/free';
 
 function normalizeModel(model) {
   if (!model) return DEFAULT_MODEL;

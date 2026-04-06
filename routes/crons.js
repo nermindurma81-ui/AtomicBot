@@ -57,7 +57,7 @@ router.get('/', (req, res) => {
 });
 
 router.post('/', (req, res) => {
-  const { name, schedule, prompt, model = 'openrouter/mistralai/mistral-7b-instruct:free' } = req.body;
+  const { name, schedule, prompt, model = 'openrouter/free' } = req.body;
   if (!name || !schedule || !prompt) return res.status(400).json({ error: 'name, schedule, prompt required' });
   if (!cron.validate(schedule)) return res.status(400).json({ error: 'Invalid cron schedule' });
 

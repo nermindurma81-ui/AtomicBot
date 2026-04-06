@@ -70,7 +70,7 @@ router.get('/', async (req, res) => {
       checks.push({ name: 'chat_roundtrip', status: 'warn', detail: 'Skipped (missing OpenRouter key)' });
     } else {
       try {
-        const content = await callAI('openrouter/mistralai/mistral-7b-instruct:free', [{ role: 'user', content: 'Reply with OK' }], { openrouter: key }, false);
+        const content = await callAI('openrouter/free', [{ role: 'user', content: 'Reply with OK' }], { openrouter: key }, false);
         const ok = typeof content === 'string' && content.trim().length > 0;
         checks.push({ name: 'chat_roundtrip', status: ok ? 'pass' : 'fail', detail: ok ? undefined : 'Empty model response' });
       } catch (err) {
