@@ -2,8 +2,8 @@ import axios from 'axios';
 
 // In production on Railway: frontend & backend are served from the SAME origin
 // so BASE = '/api' works perfectly. In local dev, Vite proxy handles it.
-// Override with VITE_API_URL env var if needed (separate deployments).
-const BASE = import.meta.env.VITE_API_URL || '/api';
+// Override with VITE_API_BASE (preferred) or VITE_API_URL if needed (separate deployments).
+const BASE = (import.meta.env.VITE_API_BASE || import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '');
 
 const api = axios.create({ baseURL: BASE });
 
@@ -18,7 +18,7 @@ api.interceptors.response.use(
     // Guard: if server returns HTML instead of JSON, throw a clear error
     const ct = r.headers['content-type'] || '';
     if (ct.includes('text/html') && typeof r.data === 'string') {
-      throw new Error(`Server vratio HTML umjesto JSON-a. Provjeri VITE_API_URL env varijablu.`);
+      throw new Error(`Server vratio HTML umjesto JSON-a. Provjeri VITE_API_BASE/VITE_API_URL env varijablu.`);
     }
     return r;
   },
@@ -34,8 +34,8 @@ api.interceptors.response.use(
     if (ct.includes('text/html')) {
       const orig = err.config?.url || '';
       err.message = `Server vratio HTML umjesto JSON-a (ruta možda nije dostupna): ${orig}`;
-      if (!import.meta.env.VITE_API_URL) {
-        err.message += ' • Ako API nije na istom domenu, postavi VITE_API_URL.';
+      if (!import.meta.env.VITE_API_BASE && !import.meta.env.VITE_API_URL) {
+        err.message += ' • Ako API nije na istom domenu, postavi VITE_API_BASE.';
       }
     }
     return Promise.reject(err);
@@ -50,46 +50,74 @@ export async function streamChat({ messages, model, taskId, onDelta, onDone, onE
   const url = `${BASE}/chat/stream`;
 
   try {
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers.Authorization = `Bearer ${token}`;
+
     const response = await fetch(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
+      headers,
       body: JSON.stringify({ messages, model, taskId }),
     });
 
     if (!response.ok) {
       const ct = response.headers.get('content-type') || '';
       if (ct.includes('text/html')) {
-        throw new Error(`API ruta nije pronađena (${url}). Backend možda nije pokrenut ili VITE_API_URL nije postavljen.`);
+        throw new Error(`API ruta nije pronađena (${url}). Backend možda nije pokrenut ili VITE_API_BASE nije postavljen.`);
       }
       throw new Error(`HTTP ${response.status}`);
     }
 
+    if (!response.body) {
+      throw new Error('SSE stream nije dostupan (response body je prazan).');
+    }
+
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
+    let buffer = '';
 
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
 
-      const text = decoder.decode(value);
-      const lines = text.split('\n').filter(l => l.startsWith('data: '));
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
 
       for (const line of lines) {
-        const data = line.slice(6);
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        if (!trimmed.startsWith('data: ')) continue;
+        const data = trimmed.slice(6);
         if (data === '[DONE]') { onDone?.(); return; }
+
         try {
           const parsed = JSON.parse(data);
           if (parsed.error) { onError?.(parsed.error); return; }
           if (parsed.delta) onDelta?.(parsed.delta);
-        } catch {}
+        } catch {
+          // ignore non-JSON keepalive lines
+        }
       }
     }
+
+    // flush trailing partial line (if any)
+    buffer += decoder.decode();
+    const trailing = buffer.trim();
+    if (trailing.startsWith('data: ')) {
+      const data = trailing.slice(6);
+      if (data !== '[DONE]') {
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.error) { onError?.(parsed.error); return; }
+          if (parsed.delta) onDelta?.(parsed.delta);
+        } catch {
+          // ignore
+        }
+      }
+    }
+
     onDone?.();
   } catch (err) {
     onError?.(err.message);
   }
 }
-
