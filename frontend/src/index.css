@@ -1,0 +1,65 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* { box-sizing: border-box; }
+
+body {
+  background: #0a0a0a;
+  color: #ffffff;
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  margin: 0;
+  padding: 0;
+}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #3a3a3a; }
+
+.prose-atomic {
+  color: #e5e5e5;
+  font-size: 14px;
+  line-height: 1.7;
+}
+.prose-atomic pre {
+  background: #0d0d0d;
+  border: 1px solid #1f1f1f;
+  border-radius: 8px;
+  padding: 16px;
+  overflow-x: auto;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+}
+.prose-atomic code {
+  background: #1a1a1a;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  color: #a3e635;
+}
+.prose-atomic pre code {
+  background: transparent;
+  padding: 0;
+  color: inherit;
+}
+.prose-atomic p { margin: 0 0 12px; }
+.prose-atomic p:last-child { margin-bottom: 0; }
+.prose-atomic ul, .prose-atomic ol { padding-left: 20px; margin: 8px 0; }
+.prose-atomic li { margin: 4px 0; }
+.prose-atomic strong { color: #ffffff; font-weight: 600; }
+.prose-atomic h1, .prose-atomic h2, .prose-atomic h3 { color: #fff; font-weight: 600; margin: 16px 0 8px; }
+.prose-atomic a { color: #a3e635; text-decoration: none; }
+.prose-atomic a:hover { text-decoration: underline; }
+
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+.cursor-blink { animation: blink 1s step-end infinite; }
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.fade-in { animation: fadeIn 0.2s ease-out; }
+
+@keyframes pulse-green { 0%, 100% { box-shadow: 0 0 0 0 rgba(163, 230, 53, 0.3); } 50% { box-shadow: 0 0 0 6px rgba(163, 230, 53, 0); } }
+.pulse-green { animation: pulse-green 2s infinite; }
